@@ -489,6 +489,9 @@ config ARMSSE
     select TZ_PPC
     select UNIMP
 
+config AMD_PSP
+    bool
+
 config ARMSSE_CPUID
     bool
 
