@@ -30,11 +30,27 @@ static const PSPMiscReg psp_regs[] = {
     },
 };
 
+
+static const char* get_region_name(hwaddr addr) {
+
+    if (addr > PSP_SMN_BASE && addr < PSP_MMIO_BASE) {
+        return PSP_SMN_NAME;
+    } else if (addr > PSP_MMIO_BASE && addr < PSP_X86_BASE) {
+        return PSP_MMIO_NAME;
+    } else if (addr > PSP_X86_BASE && addr < PSP_UNKNOWN_BASE) {
+        return PSP_X86_NAME;
+    } else if (addr > PSP_UNKNOWN_BASE && addr < PSP_ROM_BASE) {
+        return PSP_UNKNOWN_NAME;
+    }
+
+    return PSP_ROM_NAME;
+}
+
 static void psp_misc_write(void *opaque, hwaddr offset,
                        uint64_t value, unsigned int size) {
     qemu_log_mask(LOG_UNIMP, "%s: unimplemented device write "
                   "(size %d, offset 0x%" HWADDR_PRIx ", val 0x%lx)\n",
-                  TYPE_PSP_MISC, size, offset, value);
+                  get_region_name(offset), size, offset, value);
 }
 
 static uint64_t psp_misc_read(void *opaque, hwaddr offset, unsigned int size) {
@@ -49,7 +65,7 @@ static uint64_t psp_misc_read(void *opaque, hwaddr offset, unsigned int size) {
 
     qemu_log_mask(LOG_UNIMP, "%s: unimplemented device read "
                   "(size %d, offset 0x%" HWADDR_PRIx ")\n",
-                  TYPE_PSP_MISC, size, offset);
+                  get_region_name(offset), size, offset);
     return 0;
 }
 

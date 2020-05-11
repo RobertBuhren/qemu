@@ -8,7 +8,21 @@
 #define TYPE_AMD_PSP "amd-psp"
 #define AMD_PSP(obj) OBJECT_CHECK(AmdPspState, (obj), TYPE_AMD_PSP)
 
-#define PSP_ROM_ADDR  0xffff0000
+#define PSP_SMN_BASE 0x01000000
+#define PSP_SMN_NAME "PSP SMN"
+
+#define PSP_MMIO_BASE 0x03000000
+#define PSP_MMIO_NAME "PSP MMIO"
+
+#define PSP_X86_BASE 0x04000000
+#define PSP_X86_NAME "PSP X86"
+
+#define PSP_UNKNOWN_BASE  0xfc000000
+#define PSP_UNKNOWN_NAME "PSP UNKNOWN"
+
+#define PSP_ROM_BASE  0xffff0000
+#define PSP_ROM_NAME "PSP ROM"
+
 #define PSP_ROM_SIZE  0x10000
 
 #define PSP_SRAM_ADDR  0x0

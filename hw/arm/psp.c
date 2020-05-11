@@ -109,7 +109,7 @@ static void amd_psp_realize(DeviceState *dev, Error **errp) {
     /* Init ROM */
     memory_region_init_rom(&s->rom, OBJECT(dev), "rom", PSP_ROM_SIZE,
                            &error_abort);
-    memory_region_add_subregion(get_system_memory(), PSP_ROM_ADDR, &s->rom);
+    memory_region_add_subregion(get_system_memory(), PSP_ROM_BASE, &s->rom);
 
     misc = qdev_create(NULL, TYPE_PSP_MISC);
     qdev_init_nofail(misc);
