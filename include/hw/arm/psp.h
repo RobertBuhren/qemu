@@ -9,6 +9,8 @@
 #define AMD_PSP(obj) OBJECT_CHECK(AmdPspState, (obj), TYPE_AMD_PSP)
 
 #define PSP_ROM_ADDR  0xffff0000
+#define PSP_ROM_SIZE  0x10000
+
 #define PSP_SRAM_ADDR  0x0
 #define PSP_SRAM_SIZE_ZEN  0x40000
 #define PSP_SRAM_SIZE_ZEN_PLUS  0x40000
@@ -23,35 +25,6 @@ typedef enum PspGeneration {
   ZEN2,
 } PspGeneration;
 
-
-static uint32_t PspGetSramSize(PspGeneration gen) {
-  switch(gen) {
-    case ZEN:
-      return PSP_SRAM_SIZE_ZEN;
-    case ZEN_PLUS:
-      return PSP_SRAM_SIZE_ZEN_PLUS;
-    case ZEN2:
-      return PSP_SRAM_SIZE_ZEN_2;
-    default:
-      return PSP_SRAM_SIZE_ZEN;
-  }
-
-}
-
-static uint32_t PspGetSramAddr(PspGeneration gen) {
-  return 0x0;
-}
-
-/* static const char* PspGenToName(PspGeneration gen) { */
-/*   return GenNames[gen]; */
-/* } */
-
-static PspGeneration PspNameToGen(const char* name) {
-  /* TODO */
-  return ZEN;
-
-}
-
 typedef struct AmdPspState {
   /*< private >*/
   DeviceState parent_obj;
@@ -64,4 +37,15 @@ typedef struct AmdPspState {
   ARMCPU cpu;
 
 } AmdPspState;
+
+/* Loads a binary blob into the PSP address space */
+void load_firmware(AmdPspState *s, hwaddr addr);
+
+uint32_t PspGetSramAddr(PspGeneration gen);
+
+uint32_t PspGetSramSize(PspGeneration gen);
+
+const char* PspGenToName(PspGeneration gen);
+PspGeneration PspNameToGen(const char* name);
+
 #endif

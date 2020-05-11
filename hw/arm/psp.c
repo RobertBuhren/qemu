@@ -4,21 +4,71 @@
 #include "sysemu/sysemu.h"
 #include "exec/address-spaces.h"
 #include "hw/sysbus.h"
+#include "qemu-common.h"
 #include "qemu/osdep.h"
 #include "qapi/error.h"
 #include "hw/qdev-properties.h"
 #include "hw/boards.h"
 #include "hw/loader.h"
 #include "hw/arm/psp.h"
+#include "hw/arm/psp-misc.h"
+#include "qemu/log.h"
 
+PspGeneration PspNameToGen(const char* name) {
+  /* TODO: Make the generation a property of the "psp" class */
+  return ZEN;
+}
 
+uint32_t PspGetSramSize(PspGeneration gen) {
+  switch(gen) {
+    case ZEN:
+      return PSP_SRAM_SIZE_ZEN;
+    case ZEN_PLUS:
+      return PSP_SRAM_SIZE_ZEN_PLUS;
+    case ZEN2:
+      return PSP_SRAM_SIZE_ZEN_2;
+    default:
+      return PSP_SRAM_SIZE_ZEN;
+  }
 
+}
+
+uint32_t PspGetSramAddr(PspGeneration gen) {
+  return 0x0;
+}
 /* static const char* GenNames[3] = { "Zen", "Zen+", "Zen2"}; */
 /* TODO: Maybe use TYPE_CPU_CLUSTER to create an SoC with multiple PSP's.
  * Example in armsse.c: armsse_init() */
 /* NOTE: MachineState = state of instantiated MachineClass */
 
 /* TODO: Check CPU Object properties */
+
+/* Copied from hw/arm/digic_boards.c */
+/* TODO rename to avoid conflicts */
+void load_firmware(AmdPspState *s, hwaddr addr)
+{
+    target_long rom_size;
+    const char *filename;
+
+    filename = bios_name;
+
+    if (filename) {
+        char *fn = qemu_find_file(QEMU_FILE_TYPE_BIOS, filename);
+
+        if (!fn) {
+            error_report("Couldn't find rom image '%s'.", filename);
+            exit(1);
+        }
+
+        rom_size = load_image_targphys(fn, addr,s->sram.size);
+        if (rom_size < 0 || rom_size > s->sram.size) {
+            error_report("Couldn't load rom image '%s'.", filename);
+            error_report("Reported SRAM size is 0x%x", (uint32_t)s->sram.size);
+            exit(1);
+        }
+        g_free(fn);
+    }
+}
 
 static void amd_psp_init(Object *obj) {
 
@@ -31,29 +81,41 @@ static void amd_psp_init(Object *obj) {
     object_initialize_child(obj, "cpu", &s->cpu, sizeof(s->cpu),
                             ARM_CPU_TYPE_NAME("cortex-a8"),
                             &error_abort, NULL);
-
 }
 
 static void amd_psp_realize(DeviceState *dev, Error **errp) {
     AmdPspState *s = AMD_PSP(dev);
     Error *err = NULL;
+    /* This device covers all "unknown" psp registers */
+    DeviceState *misc;
     uint32_t sram_size;
     uint32_t sram_addr;
 
-    /* Init CPU object */
+
+    /* Init CPU object. TODO convert to qdev_init_nofail */
     object_property_set_bool(OBJECT(&s->cpu), true, "realized" , &err);
     if (err != NULL) {
         error_propagate(errp, err);
         return;
     }
 
-    /* Add SRAM */
+    /* Init SRAM */
     sram_size = PspGetSramSize(s->gen);
     sram_addr = PspGetSramAddr(s->gen);
     memory_region_init_ram(&s->sram, OBJECT(dev), "sram", sram_size,
-                           &error_fatal);
+                           &error_abort);
     memory_region_add_subregion(get_system_memory(), sram_addr, &s->sram);
 
+    /* Init ROM */
+    memory_region_init_rom(&s->rom, OBJECT(dev), "rom", PSP_ROM_SIZE,
+                           &error_abort);
+    memory_region_add_subregion(get_system_memory(), PSP_ROM_ADDR, &s->rom);
+
+    misc = qdev_create(NULL, TYPE_PSP_MISC);
+    qdev_init_nofail(misc);
+
+    /* Map the misc device as an overlap with low priority */
+    sysbus_mmio_map_overlap(SYS_BUS_DEVICE(misc), 0, 0, -1000);
 }
 
 static Property amd_psp_properties[] = {
@@ -64,8 +126,11 @@ static Property amd_psp_properties[] = {
 static void amd_psp_class_init(ObjectClass *oc, void* data) {
     DeviceClass *dc = DEVICE_CLASS(oc);
     device_class_set_props(dc,amd_psp_properties);
+    /* TODO: Add generation to the description */
     dc->desc = "AMD PSP";
     dc->realize = amd_psp_realize;
+    /* TODO: Why? */
+    dc->user_creatable = false;
 }
 
 /* TODO: Use "create_unimplemented_device" to log accesses to unknown mem areas */

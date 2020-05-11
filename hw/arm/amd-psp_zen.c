@@ -5,38 +5,13 @@
 #include "exec/address-spaces.h"
 #include "hw/sysbus.h"
 #include "qemu/osdep.h"
-#include "qemu-common.h"
+#include "qemu/units.h"
 #include "qapi/error.h"
 #include "hw/qdev-properties.h"
 #include "hw/boards.h"
 #include "hw/loader.h"
 #include "hw/arm/psp.h"
 
-/* Copied from hw/arm/digic_boards.c */
-static void load_firmware(AmdPspState *s, hwaddr addr)
-{
-    target_long rom_size;
-    const char *filename;
-
-    filename = bios_name;
-
-    if (filename) {
-        char *fn = qemu_find_file(QEMU_FILE_TYPE_BIOS, filename);
-
-        if (!fn) {
-            error_report("Couldn't find rom image '%s'.", filename);
-            exit(1);
-        }
-
-        rom_size = load_image_targphys(fn, addr,s->sram.size);
-        if (rom_size < 0 || rom_size > s->sram.size) {
-            error_report("Couldn't load rom image '%s'.", filename);
-            error_report("Reported SRAM size is 0x%x", (uint32_t)s->sram.size);
-            exit(1);
-        }
-        g_free(fn);
-    }
-}
 
 static void zen_init(MachineState *machine) {
 
@@ -57,8 +32,10 @@ static void zen_init(MachineState *machine) {
 
     object_property_set_bool(OBJECT(psp), true, "realized", &error_abort);
 
-    /* TODO rework */
-    load_firmware(psp,PspGetSramAddr(psp->gen));
+    /* TODO rework: Use generic_loader: docs/generic-loader.txt */
+    load_firmware(psp,PSP_ROM_ADDR);
+    /* Set PC to high-vec */
+    psp->cpu.env.regs[15] = 0xffff0000;
 
 
 }
@@ -71,7 +48,11 @@ static void psp_zen_machine_init(MachineClass *mc) {
     mc->max_cpus = 1;
     mc->default_cpus = 1;
     mc->default_cpu_type = ARM_CPU_TYPE_NAME("cortex-a8");
-    mc->default_ram_size = 1; // TODO
+    /* The PSP does not have ram, however the generic-loader device apparently
+     * validates this value, so we set it here to an sufficiently large value
+     * TODO: Verify that this has not other, unwanted side-effects.
+     */
+    mc->default_ram_size = 1 * GiB;
     mc->default_ram_id = "psp-ram";
 }
 DEFINE_MACHINE("amd-psp_zen", psp_zen_machine_init)
