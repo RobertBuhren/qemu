@@ -16,8 +16,6 @@ typedef struct PSPMiscState {
     SysBusDevice parent_obj;
     MemoryRegion iomem;
 
-    /* TODO: Define length at compile time */
-    uint32_t regs[1];
 } PSPMiscState;
 
 
