@@ -33,7 +33,7 @@ static void zen_init(MachineState *machine) {
     object_property_set_bool(OBJECT(psp), true, "realized", &error_abort);
 
     /* TODO rework: Use generic_loader: docs/generic-loader.txt */
-    load_firmware(psp,PSP_ROM_BASE);
+    psp_load_firmware(psp,PSP_ROM_BASE);
     /* Set PC to high-vec */
     psp->cpu.env.regs[15] = 0xffff0000;
 
