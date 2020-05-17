@@ -33,6 +33,19 @@ uint32_t PspGetSramSize(PspGeneration gen) {
 
 }
 
+static PSPMiscReg psp_regs[] = {
+    {
+        /* The on chip bootloader waits for bit 0 to go 1. */
+        .addr = 0x03006038,
+        .val = 0x1,
+    },
+    {
+        /* TODO: Timer dev. Move to own device */
+        .addr = 0x03010104,
+        .val = 0xffffffff,
+    },
+};
+
 uint32_t PspGetSramAddr(PspGeneration gen) {
   return 0x0;
 }
@@ -80,13 +93,16 @@ static void amd_psp_init(Object *obj) {
     object_initialize_child(obj, "cpu", &s->cpu, sizeof(s->cpu),
                             ARM_CPU_TYPE_NAME("cortex-a8"),
                             &error_abort, NULL);
+
+    object_initialize_child(obj, "base_mem", &s->base_mem, sizeof(s->base_mem),
+                            TYPE_PSP_MISC, &error_abort, NULL);
+    
 }
 
 static void amd_psp_realize(DeviceState *dev, Error **errp) {
     AmdPspState *s = AMD_PSP(dev);
     Error *err = NULL;
     /* This device covers all "unknown" psp registers */
-    DeviceState *misc;
     uint32_t sram_size;
     uint32_t sram_addr;
 
@@ -110,13 +126,15 @@ static void amd_psp_realize(DeviceState *dev, Error **errp) {
                            &error_abort);
     memory_region_add_subregion(get_system_memory(), PSP_ROM_BASE, &s->rom);
 
-    misc = qdev_create(NULL, TYPE_PSP_MISC);
-    qdev_init_nofail(misc);
+    /* TODO: Is this the way to go? ... */
+    s->base_mem.regs = psp_regs;
+    s->base_mem.regs_count = ARRAY_SIZE(psp_regs);
 
     /* Map the misc device as an overlap with low priority */
-    sysbus_mmio_map_overlap(SYS_BUS_DEVICE(misc), 0, 0, -1000);
+    sysbus_mmio_map_overlap(SYS_BUS_DEVICE(&s->base_mem), 0, 0, -1000);
 }
 
+/* User-configurable options via "-device 'name','property'=" */
 static Property amd_psp_properties[] = {
     DEFINE_PROP_UINT32("generation", AmdPspState, gen, 0),
     DEFINE_PROP_END_OF_LIST(),

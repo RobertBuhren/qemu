@@ -4,6 +4,7 @@
 #include "hw/arm/boot.h"
 #include "hw/sysbus.h"
 #include "target/arm/cpu.h"
+#include "hw/arm/psp-misc.h"
 
 #define TYPE_AMD_PSP "amd-psp"
 #define AMD_PSP(obj) OBJECT_CHECK(AmdPspState, (obj), TYPE_AMD_PSP)
@@ -30,8 +31,6 @@
 #define PSP_SRAM_SIZE_ZEN_PLUS  0x40000
 #define PSP_SRAM_SIZE_ZEN_2  0x50000
 
-/* extern const char** GenNames; */
-
 
 typedef enum PspGeneration {
   ZEN = 0,
@@ -49,6 +48,9 @@ typedef struct AmdPspState {
 
   PspGeneration gen;
   ARMCPU cpu;
+  /* This device covers every MMIO address we have not covered somewhere else */
+  PSPMiscState base_mem;
+
 
 } AmdPspState;
 

@@ -17,19 +17,6 @@
 /* TODO: Migrate misc regs from PSPEmu.
  * TODO: Implement call back to handle more complicated misc devices
  */
-static const PSPMiscReg psp_regs[] = {
-    {
-        /* The on chip bootloader waits for bit 0 to go 1. */
-        .addr = 0x03006038,
-        .val = 0x1,
-    },
-    {
-        /* TODO: Timer dev. Move to own device */
-        .addr = 0x03010104,
-        .val = 0xffffffff,
-    },
-};
-
 
 static const char* get_region_name(hwaddr addr) {
 
@@ -56,11 +43,12 @@ static void psp_misc_write(void *opaque, hwaddr offset,
 static uint64_t psp_misc_read(void *opaque, hwaddr offset, unsigned int size) {
     
     /* TODO: Get current PC and regs */
+    PSPMiscState *misc = PSP_MISC(opaque);
     int i;
 
-    for (i = 0; i < ARRAY_SIZE(psp_regs); i++) {
-        if (offset == psp_regs[i].addr)
-            return psp_regs[i].val;
+    for (i = 0; i < misc->regs_count; i++) {
+        if (offset == misc->regs[i].addr)
+            return misc->regs[i].val;
     }
 
     qemu_log_mask(LOG_UNIMP, "%s: unimplemented device read "
