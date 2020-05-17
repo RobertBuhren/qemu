@@ -115,6 +115,29 @@ static void amd_psp_realize(DeviceState *dev, Error **errp) {
         return;
     }
 
+    /* TODO: refactor instantiation of "base_mem" into a dedicated init 
+     * function: base_mem_init().
+     */
+    object_property_set_uint(OBJECT(&s->base_mem), 0xFFFFFFFF,
+                             "psp_misc_msize", &err);
+    if (err != NULL) {
+        error_propagate(errp, err);
+        return;
+    }
+
+    object_property_set_str(OBJECT(&s->base_mem), "BASE MEM",
+                                "psp_misc_ident", &error_abort);
+    if (err != NULL) {
+        error_propagate(errp, err);
+        return;
+    }
+
+    object_property_set_bool(OBJECT(&s->base_mem), true, "realized", &err);
+    if (err != NULL) {
+        error_propagate(errp, err);
+        return;
+    }
+
     /* Init SRAM */
     sram_size = PspGetSramSize(s->gen);
     sram_addr = PspGetSramAddr(s->gen);
