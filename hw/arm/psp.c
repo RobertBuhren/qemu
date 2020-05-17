@@ -40,9 +40,10 @@ static PSPMiscReg psp_regs[] = {
         .val = 0x1,
     },
     {
-        /* TODO: Timer dev. Move to own device */
+        /* MMIO mapped Fuse. */
+        /* TODO: Read this value from other systems, i.e. Ryzen/TR */
         .addr = 0x03010104,
-        .val = 0xffffffff,
+        .val = 0x1a060900, /* Value read from a real EPYC system */
     },
 };
 
