@@ -9,6 +9,8 @@
 #define TYPE_AMD_PSP "amd-psp"
 #define AMD_PSP(obj) OBJECT_CHECK(AmdPspState, (obj), TYPE_AMD_PSP)
 
+#define PSP_SMN_CTRL_BASE 0x03220000
+
 #define PSP_SMN_BASE 0x01000000
 #define PSP_SMN_NAME "PSP SMN"
 

@@ -45,6 +45,11 @@ static PSPMiscReg psp_regs[] = {
         .addr = 0x03010104,
         .val = 0x1a060900, /* Value read from a real EPYC system */
     },
+    {
+        /* TODO: Document from PSPEmu */
+        .addr = 0x0320004c,
+        .val = 0xbc09000, 
+    },
 };
 
 uint32_t PspGetSramAddr(PspGeneration gen) {
@@ -92,7 +97,7 @@ static void amd_psp_init(Object *obj) {
     s->gen = gen;
 
     object_initialize_child(obj, "cpu", &s->cpu, sizeof(s->cpu),
-                            ARM_CPU_TYPE_NAME("cortex-a8"),
+                            ARM_CPU_TYPE_NAME("cortex-a9"),
                             &error_abort, NULL);
 
     object_initialize_child(obj, "base_mem", &s->base_mem, sizeof(s->base_mem),
@@ -107,6 +112,8 @@ static void amd_psp_realize(DeviceState *dev, Error **errp) {
     uint32_t sram_size;
     uint32_t sram_addr;
 
+    /* Enable the ARM TrustZone extensions */
+    object_property_set_bool(OBJECT(&s->cpu), true, "has_el3", &err);
 
     /* Init CPU object. TODO convert to qdev_init_nofail */
     object_property_set_bool(OBJECT(&s->cpu), true, "realized" , &err);
