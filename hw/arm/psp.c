@@ -13,6 +13,7 @@
 #include "hw/arm/psp.h"
 #include "hw/arm/psp-misc.h"
 #include "hw/arm/psp-smn.h"
+#include "hw/arm/psp-timer.h"
 #include "qemu/log.h"
 
 PspGeneration PspNameToGen(const char* name) {
@@ -107,6 +108,11 @@ static void amd_psp_init(Object *obj) {
     object_initialize_child(obj, "base_mem", &s->base_mem, sizeof(s->base_mem),
                             TYPE_PSP_MISC, &error_abort, NULL);
     
+    object_initialize_child(obj, "timer1", &s->timer1, sizeof(s->timer1),
+                            TYPE_PSP_TIMER, &error_abort, NULL);
+    
+    object_initialize_child(obj, "timer2", &s->timer2, sizeof(s->timer2),
+                            TYPE_PSP_TIMER, &error_abort, NULL);
 }
 
 static void amd_psp_realize(DeviceState *dev, Error **errp) {
@@ -168,6 +174,10 @@ static void amd_psp_realize(DeviceState *dev, Error **errp) {
 
     /* Map SMN control registers */
     sysbus_mmio_map(SYS_BUS_DEVICE(&s->smn), 0, PSP_SMN_CTRL_BASE);
+
+    /* Map timers */
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->timer1), 0, PSP_TIMER1_BASE);
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->timer2), 0, PSP_TIMER2_BASE);
 
     /* TODO: Is this the way to go? ... */
     s->base_mem.regs = psp_regs;
