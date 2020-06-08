@@ -12,6 +12,7 @@
 #include "hw/loader.h"
 #include "hw/arm/psp.h"
 #include "hw/arm/psp-misc.h"
+#include "hw/arm/psp-smn.h"
 #include "qemu/log.h"
 
 PspGeneration PspNameToGen(const char* name) {
@@ -48,7 +49,7 @@ static PSPMiscReg psp_regs[] = {
     {
         /* TODO: Document from PSPEmu */
         .addr = 0x0320004c,
-        .val = 0xbc09000, 
+        .val = 0xbc090072, 
     },
 };
 
@@ -100,6 +101,9 @@ static void amd_psp_init(Object *obj) {
                             ARM_CPU_TYPE_NAME("cortex-a9"),
                             &error_abort, NULL);
 
+    object_initialize_child(obj, "smn", &s->smn, sizeof(s->smn),
+                            TYPE_PSP_SMN, &error_abort, NULL);
+
     object_initialize_child(obj, "base_mem", &s->base_mem, sizeof(s->base_mem),
                             TYPE_PSP_MISC, &error_abort, NULL);
     
@@ -107,8 +111,8 @@ static void amd_psp_init(Object *obj) {
 
 static void amd_psp_realize(DeviceState *dev, Error **errp) {
     AmdPspState *s = AMD_PSP(dev);
+    /* TODO: Maybe use "&error_abort" instead? */
     Error *err = NULL;
-    /* This device covers all "unknown" psp registers */
     uint32_t sram_size;
     uint32_t sram_addr;
 
@@ -121,6 +125,11 @@ static void amd_psp_realize(DeviceState *dev, Error **errp) {
         error_propagate(errp, err);
         return;
     }
+
+    object_property_set_uint(OBJECT(&s->smn), PSP_SMN_BASE, 
+                             "smn-container-base", &error_abort);
+
+    object_property_set_bool(OBJECT(&s->smn), true, "realized" , &error_abort);
 
     /* TODO: refactor instantiation of "base_mem" into a dedicated init 
      * function: base_mem_init().
@@ -157,11 +166,15 @@ static void amd_psp_realize(DeviceState *dev, Error **errp) {
                            &error_abort);
     memory_region_add_subregion(get_system_memory(), PSP_ROM_BASE, &s->rom);
 
+    /* Map SMN control registers */
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->smn), 0, PSP_SMN_CTRL_BASE);
+
     /* TODO: Is this the way to go? ... */
     s->base_mem.regs = psp_regs;
     s->base_mem.regs_count = ARRAY_SIZE(psp_regs);
 
     /* Map the misc device as an overlap with low priority */
+    /* This device covers all "unknown" psp registers */
     sysbus_mmio_map_overlap(SYS_BUS_DEVICE(&s->base_mem), 0, 0, -1000);
 }
 

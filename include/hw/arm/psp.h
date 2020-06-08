@@ -5,6 +5,7 @@
 #include "hw/sysbus.h"
 #include "target/arm/cpu.h"
 #include "hw/arm/psp-misc.h"
+#include "hw/arm/psp-smn.h"
 
 #define TYPE_AMD_PSP "amd-psp"
 #define AMD_PSP(obj) OBJECT_CHECK(AmdPspState, (obj), TYPE_AMD_PSP)
@@ -50,9 +51,12 @@ typedef struct AmdPspState {
 
   PspGeneration gen;
   ARMCPU cpu;
+
   /* This device covers every MMIO address we have not covered somewhere else */
   PSPMiscState base_mem;
 
+  /* This device represents the SMN address space including control registers */
+  PSPSmnState smn;
 
 } AmdPspState;
 
