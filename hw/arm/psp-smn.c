@@ -36,8 +36,8 @@ static void psp_smn_update_slot(PSPSmnState *smn, uint32_t idx) {
 
 }
 
-static void psp_smn_write(void *opaque, hwaddr offset,
-                       uint64_t value, unsigned int size) {
+static void psp_smn_write(void *opaque, hwaddr offset, uint64_t value,
+                          unsigned int size) {
     PSPSmnState *smn = PSP_SMN(opaque);
     uint32_t idx;
     hwaddr phys_base = smn->psp_smn_control.addr;
