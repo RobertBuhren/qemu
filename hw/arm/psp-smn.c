@@ -20,6 +20,114 @@
 
 const char* ident = "SMN Control";
 
+static PSPMiscReg psp_regs[] = {
+    {
+        /* The on chip bootloader waits for bit 0 to go 1 */
+        .addr = 0x5e000,
+        .val = 0x1, 
+    },
+    {
+        /* Read by the on chip bootloader and acted upon. */
+        .addr = 0x1025034,
+        .val = 0x1e113,
+    },
+    {
+        /* Read by the on chip bootloader and acted upon. */
+        .addr = 0x01003034,
+        .val = 0x1e112,
+    },
+    {
+        /* Read by the on chip bootloader and acted upon. */
+        .addr = 0x01004034,
+        .val = 0x1e112,
+    },
+    {
+        /* Read by the on chip bootloader and acted upon. */
+        .addr = 0x0102e034,
+        .val = 0x1e312,
+    },
+    {
+        /* Read by the on chip bootloader and acted upon. */
+        .addr = 0x01046034,
+        .val = 0x1e103,
+    },
+    {
+        /* Read by the on chip bootloader and acted upon. */
+        .addr = 0x01047034,
+        .val = 0x1e103,
+    },
+    {
+        /* Read by the on chip bootloader and acted upon. */
+        .addr = 0x01030034,
+        .val = 0x1e312,
+    },
+    {
+        /* Read by the on chip bootloader and acted upon. */
+        .addr = 0x01018034,
+        .val = 0x1e113,
+    },
+    {
+        /* Read by the on chip bootloader and acted upon. */
+        .addr = 0x0106c034,
+        .val = 0x1e113,
+    },
+    {
+        /* Read by the on chip bootloader and acted upon. */
+        .addr = 0x0106d034,
+        .val = 0x1e113,
+    },
+    {
+        /* Read by the on chip bootloader and acted upon. */
+        .addr = 0x0106e034,
+        .val = 0x1e313,
+    },
+    {
+        /* Read by the on chip bootloader and acted upon. */
+        .addr = 0x01080034,
+        .val = 0x1e113,
+    },
+    {
+        /* Read by the on chip bootloader and acted upon. */
+        .addr = 0x01081034,
+        .val = 0x1e113,
+    },
+    {
+        /* Read by the on chip bootloader and acted upon. */
+        .addr = 0x01096034,
+        .val = 0x1e313,
+    },
+    {
+        /* Read by the on chip bootloader and acted upon. */
+        .addr = 0x01097034,
+        .val = 0x1e313,
+    },
+    {
+        /* Read by the on chip bootloader and acted upon. */
+        .addr = 0x010a8034,
+        .val = 0x1e313,
+    },
+    {
+        /* Read by the on chip bootloader and acted upon. */
+        .addr = 0x010d8034,
+        .val = 0x1e313,
+    },
+    {
+        /* The on chip bootloader waits for bit 0 to go 1. */
+        .addr = 0x5a088,
+        .val = 0x1,
+    },
+    {
+        /* The on chip bootloader waits for bit 9 and 10 to become set. */
+        .addr = 0x18080064,
+        .val = BIT(10) | BIT(9),
+    },
+    {
+        /* The on chip bootloader waits for bit 9 and 10 to become set. */
+        .addr = 0x18480064,
+        .val = BIT(10) | BIT(9),
+    },
+};
+
 static void psp_smn_update_slot(PSPSmnState *smn, uint32_t idx) {
     char name[PSP_SMN_SLOT_NAME_LEN] = { 0 };
 
@@ -177,6 +285,10 @@ static void psp_smn_realize(DeviceState *dev, Error **errp) {
     sysbus_init_mmio(sbd, &s->psp_smn_control);
 
     /* Connect the misc device to the SMN address space */
+    /* TODO: Is this the way to go? ... */
+    s->psp_smn_misc.regs = psp_regs;
+    s->psp_smn_misc.regs_count = ARRAY_SIZE(psp_regs);
+
     mr_smn_misc = sysbus_mmio_get_region(SYS_BUS_DEVICE(&s->psp_smn_misc), 0);
     memory_region_add_subregion_overlap(&s->psp_smn_space, 0x0, mr_smn_misc,
                                         -1000); 
