@@ -65,6 +65,8 @@ uint32_t PspGetSramAddr(PspGeneration gen) {
 /* TODO: Check CPU Object properties */
 
 /* Copied from hw/arm/digic_boards.c */
+
+/* TODO: Remove code? */
 void psp_load_firmware(AmdPspState *s, hwaddr addr)
 {
     target_long rom_size;

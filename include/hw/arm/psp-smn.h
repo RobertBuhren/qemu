@@ -4,12 +4,16 @@
 #include "hw/sysbus.h"
 #include "exec/memory.h"
 #include "hw/arm/psp-misc.h"
+#include "hw/arm/psp-smn-flash.h"
 
 #define PSP_SMN_CTRL_SIZE 16 * 4
 #define PSP_SMN_SLOT_SIZE 1024 * 1024 /* 1M */
 #define PSP_SMN_SLOT_COUNT 32
 #define PSP_SMN_SLOT_NAME_LEN  20
 #define PSP_SMN_SLOT_NAME "psp-slot_"
+
+/* Flash base address for Zen1 */
+#define PSP_SMN_FLASH_BASE 0xa000000
 
 #define TYPE_PSP_SMN "amd_psp.smn"
 #define PSP_SMN(obj) OBJECT_CHECK(PSPSmnState, (obj), TYPE_PSP_SMN)
@@ -37,6 +41,9 @@ typedef struct PSPSmnState {
 
     /* Current SMN state */
     PSPSmnAddr psp_smn_slots[32];
+
+    /* The SMN attached flash */
+    PSPSmnFlashState psp_smn_flash;
 
 } PSPSmnState;
 #endif

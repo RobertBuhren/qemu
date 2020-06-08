@@ -225,7 +225,10 @@ static void psp_smn_init(Object *obj)
     object_initialize_child(obj, "smn_misc", &s->psp_smn_misc,
                             sizeof(s->psp_smn_misc), TYPE_PSP_MISC,
                             &error_abort, NULL);
-
+    
+    object_initialize_child(obj, "smn_flash", &s->psp_smn_flash,
+                            sizeof(s->psp_smn_flash), TYPE_PSP_SMN_FLASH,
+                            &error_abort, NULL);
     
     object_property_set_uint(OBJECT(&s->psp_smn_misc), 0xFFFFFFFF,
                              "psp_misc_msize", &error_abort);
@@ -271,12 +274,11 @@ static void psp_smn_realize(DeviceState *dev, Error **errp) {
     PSPSmnState *s = PSP_SMN(dev);
     SysBusDevice *sbd = SYS_BUS_DEVICE(dev);
     MemoryRegion *mr_smn_misc;
+    PSPSmnFlashState* flash;
     
     /* The SMN address space. Independent from the PSP address space */
     memory_region_init(&s->psp_smn_space, OBJECT(dev), "smn-address-space",
                        0xFFFFFFFF);
-
-
 
     /* The SMN MMIO regions containing the control regs */
     memory_region_init_io(&s->psp_smn_control, OBJECT(dev), &smn_ctlr_ops, s,
@@ -292,6 +294,12 @@ static void psp_smn_realize(DeviceState *dev, Error **errp) {
     mr_smn_misc = sysbus_mmio_get_region(SYS_BUS_DEVICE(&s->psp_smn_misc), 0);
     memory_region_add_subregion_overlap(&s->psp_smn_space, 0x0, mr_smn_misc,
                                         -1000); 
+
+    /* Map the flash region into the SMN address space */
+    flash = &s->psp_smn_flash;
+    memory_region_add_subregion_overlap(&s->psp_smn_space, PSP_SMN_FLASH_BASE,
+                                        &flash->psp_smn_flash, 0);
+                                        
 
     /* Setup the initial SMN to PSP MemoryRegion alias. */
     psp_smn_init_slots(dev);
