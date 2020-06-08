@@ -32,6 +32,8 @@ static char *psp_misc_get_identifier(Object *obj, Error **errp) {
 
 static const char* get_region_name(hwaddr addr) {
 
+    /* TODO Fixme */
+
     if (addr > PSP_SMN_BASE && addr < PSP_MMIO_BASE) {
         return PSP_SMN_NAME;
     } else if (addr > PSP_MMIO_BASE && addr < PSP_X86_BASE) {
@@ -48,7 +50,9 @@ static const char* get_region_name(hwaddr addr) {
 static void psp_misc_write(void *opaque, hwaddr offset,
                        uint64_t value, unsigned int size) {
     PSPMiscState *misc = PSP_MISC(opaque);
-    uint32_t phys_base = misc->iomem.addr;
+    hwaddr phys_base = misc->iomem.addr;
+
+    /* TODO: Allow write to specific registers */
 
     /* We expect the pre-seeded memory regions to be instantiated with
      * physical addresses. Hence the compare with "phys_base + offset".
@@ -65,7 +69,7 @@ static uint64_t psp_misc_read(void *opaque, hwaddr offset, unsigned int size) {
     /* TODO: Get current PC and regs */
     PSPMiscState *misc = PSP_MISC(opaque);
     
-    uint32_t phys_base = misc->iomem.addr;
+    hwaddr phys_base = misc->iomem.addr;
     int i;
 
     /* We expect the pre-seeded memory regions to be instantiated with
