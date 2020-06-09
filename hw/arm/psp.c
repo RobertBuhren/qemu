@@ -32,6 +32,7 @@
 #include "hw/arm/psp-misc.h"
 #include "hw/arm/psp-smn.h"
 #include "hw/arm/psp-timer.h"
+#include "hw/arm/psp-sts.h"
 #include "qemu/log.h"
 
 PspGeneration PspNameToGen(const char* name) {
@@ -133,6 +134,9 @@ static void amd_psp_init(Object *obj) {
     
     object_initialize_child(obj, "timer2", &s->timer2, sizeof(s->timer2),
                             TYPE_PSP_TIMER, &error_abort, NULL);
+    
+    object_initialize_child(obj, "psp-sts", &s->sts, sizeof(s->sts),
+                            TYPE_PSP_STS, &error_abort, NULL);
 }
 
 static void amd_psp_realize(DeviceState *dev, Error **errp) {
@@ -198,6 +202,9 @@ static void amd_psp_realize(DeviceState *dev, Error **errp) {
     /* Map timers */
     sysbus_mmio_map(SYS_BUS_DEVICE(&s->timer1), 0, PSP_TIMER1_BASE);
     sysbus_mmio_map(SYS_BUS_DEVICE(&s->timer2), 0, PSP_TIMER2_BASE);
+
+    /* MAP PSP Status port */
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->sts), 0, PSP_STS_ZEN1_BASE);
 
     /* TODO: Is this the way to go? ... */
     s->base_mem.regs = psp_regs;

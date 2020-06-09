@@ -25,6 +25,7 @@
 #include "hw/arm/psp-misc.h"
 #include "hw/arm/psp-smn.h"
 #include "hw/arm/psp-timer.h"
+#include "hw/arm/psp-sts.h"
 
 #define TYPE_AMD_PSP "amd-psp"
 #define AMD_PSP(obj) OBJECT_CHECK(AmdPspState, (obj), TYPE_AMD_PSP)
@@ -32,6 +33,8 @@
 #define PSP_SMN_CTRL_BASE 0x03220000
 #define PSP_TIMER1_BASE 0x03010400
 #define PSP_TIMER2_BASE 0x03010424
+
+#define PSP_STS_ZEN1_BASE 0x032000e8
 
 #define PSP_SMN_BASE 0x01000000
 #define PSP_SMN_NAME "PSP SMN"
@@ -84,6 +87,9 @@ typedef struct AmdPspState {
   
   /* PSP Timer 2 at 0x03010424*/
   PSPTimerState timer2;
+  
+  /* PSP Status port */
+  PSPStsState sts;
 
 } AmdPspState;
 
