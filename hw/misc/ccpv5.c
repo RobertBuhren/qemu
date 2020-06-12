@@ -66,15 +66,20 @@ static uint32_t ccp_queue_read(CcpV5State *s, hwaddr offset, uint32_t id) {
     return ret;
 } 
 
-static void ccp_in_guest_pt(hwaddr dst, hwaddr src, uint32_t len, 
-                                ccp_memtype dst_type, ccp_memtype src_type, 
-                                ccp_pt_bitwise bwise, ccp_pt_byteswap bswap) {
+static void ccp_in_guest_pt(CcpV5State *s, uint32_t id, hwaddr dst, hwaddr src,
+                            uint32_t len, ccp_memtype dst_type,
+                            ccp_memtype src_type, ccp_pt_bitwise bwise,
+                            ccp_pt_byteswap bswap) {
     /* TODO: Ensure that we don't access un-accessible memory regions *
      *       Test whether dst - dst + len is within SRAM.
+     *       Verify that we don't overflow any host memory.
      */
     void* hdst;
     void* hsrc;
     hwaddr plen = len;
+
+    bool dclean = false;
+    bool sclean = false;
 
     if (bwise != CCP_PASSTHRU_BITWISE_NOOP ||
         bswap != CCP_PASSTHRU_BYTESWAP_NOOP) {
@@ -84,24 +89,66 @@ static void ccp_in_guest_pt(hwaddr dst, hwaddr src, uint32_t len,
         return;
 
     }
+
+    if (dst_type == CCP_MEMTYPE_SYSTEM || src_type == CCP_MEMTYPE_SYSTEM) {
+        qemu_log_mask(LOG_UNIMP, "CCP: Unimplemented memtype CCP_MEMTYPE_SYSTEM\n");
+        return;
+    }
+
+    /* Create dst pointer */
+    if (dst_type == CCP_MEMTYPE_SB) {
+        if((dst + len) > sizeof(s->lsb.u.lsb)) {
+            /* The access exceeds the LSB size: Cap the len at LSB max. TODO */
+            qemu_log_mask(LOG_GUEST_ERROR, "CCP Error: Access exceeds LSB size \n");
+            return;
+        }
+        hdst = s->lsb.u.lsb + dst;
+    } else if (dst_type == CCP_MEMTYPE_LOCAL) {
+        /* TODO: Check whether "dst" is accessible for the CCP */
+        hdst = cpu_physical_memory_map(dst, &plen, true);
+        if (hdst == NULL) {
+            qemu_log_mask(LOG_GUEST_ERROR, "CCP: Couldn't map guest memory during" \
+                                           " passthrough operation\n");
+            return;
+        }
+        dclean = true;
+    }
+
+    /* Create src pointer */
+    if (src_type == CCP_MEMTYPE_SB) {
+        if((src + len) > sizeof(s->lsb.u.lsb)) {
+            /* The access exceeds the LSB size: Cap the len at LSB max. TODO */
+            qemu_log_mask(LOG_GUEST_ERROR, "CCP Error: Access exceeds LSB size \n");
+            return;
+        }
+        hsrc = s->lsb.u.lsb + src;
+    }
+    else if (src_type == CCP_MEMTYPE_LOCAL) {
+        /* TODO: Check whether "src" is accessible for the CCP */
+        hsrc = cpu_physical_memory_map(src, &plen, false);
+        if (hsrc == NULL) {
+            qemu_log_mask(LOG_GUEST_ERROR, "CCP: Couldn't map guest memory during" \
+                                           " passthrough operation\n");
+            return;
+        }
+        sclean = true;
+    }
+
     qemu_log_mask(LOG_UNIMP, "CCP: Performing passthrough. Copying 0x%x " \
                   "bytes from 0x%" HWADDR_PRIx " to 0x%" HWADDR_PRIx "\n",
                   len, src, dst);
-    hdst = cpu_physical_memory_map(dst, &plen, true);
-    hsrc = cpu_physical_memory_map(src, &plen, false);
-    if (hdst == NULL || hsrc == NULL) {
-        qemu_log_mask(LOG_GUEST_ERROR, "CCP: Couldn't map guest memory during" \
-                      " passthrough operation\n");
-        return;
 
-    }
     memcpy(hdst, hsrc, len);
-    cpu_physical_memory_unmap(hdst, len, true, 0);
-    cpu_physical_memory_unmap(hsrc, len, false, 0);
+
+    if (dclean)
+        cpu_physical_memory_unmap(hdst, len, true, 0);
+    if (sclean)
+        cpu_physical_memory_unmap(hsrc, len, false, 0);
 }
 
 
-static void ccp_passthrough(ccp5_desc *desc) {
+static void ccp_passthrough(CcpV5State *s, uint32_t id, ccp5_desc *desc) {
+    /* TODO remove this function? */
     ccp_function func;
     ccp_memtype src_type;
     ccp_memtype dst_type;
@@ -121,17 +168,10 @@ static void ccp_passthrough(ccp5_desc *desc) {
     bwise = func.pt.bitwise;
     bswap = func.pt.byteswap;
 
-    if (src_type == CCP_MEMTYPE_LOCAL && dst_type == CCP_MEMTYPE_LOCAL) {
-        ccp_in_guest_pt(dst, src, cbytes, dst_type, src_type, bwise, bswap);
-    } else {
-        qemu_log_mask(LOG_UNIMP, "CCP: Unimplemented passthrough op: " \
-                      "src 0x%" HWADDR_PRIx " dst 0x%" HWADDR_PRIx " src_type " \
-                      "0x%x dst_type 0x%x cbytes 0x%x\n", src, dst, src_type,
-                      dst_type, cbytes);
-    }
+    ccp_in_guest_pt(s, id, dst, src, cbytes, dst_type, src_type, bwise, bswap);
 }
 
-static void ccp_execute(ccp5_desc *desc) {
+static void ccp_execute(CcpV5State *s, uint32_t id, ccp5_desc *desc) {
 
     ccp_engine engine = CCP5_CMD_ENGINE(desc);
 
@@ -153,7 +193,7 @@ static void ccp_execute(ccp5_desc *desc) {
             qemu_log_mask(LOG_UNIMP, "CCP: Unimplemented engine (RSA)\n");
             break;
         case CCP_ENGINE_PASSTHRU:
-            ccp_passthrough(desc);
+            ccp_passthrough(s, id, desc);
             break;
         case CCP_ENGINE_ZLIB_DECOMPRESS:
             qemu_log_mask(LOG_UNIMP, "CCP: Unimplemented engine (ZLIB)\n");
@@ -169,14 +209,16 @@ static void ccp_execute(ccp5_desc *desc) {
 
 }
 
-static void ccp_process_q(CcpV5QState *qs) {
+static void ccp_process_q(CcpV5State *s, uint32_t id) {
 
+    CcpV5QState *qs;
     ccp5_desc *desc;
     hwaddr req_len;
     uint32_t tail;
     uint32_t head;
     /* TODO: This operation needs to be delayed! */
 
+    qs = &s->q_states[id];
     qemu_log_mask(LOG_UNIMP,
                   "CCP: queue %d start cmd at 0x%x\n",
                   qs->ccp_q_id, qs->ccp_q_tail);
@@ -192,7 +234,7 @@ static void ccp_process_q(CcpV5QState *qs) {
 
     while (tail < head) {
         desc = cpu_physical_memory_map(tail, &req_len, false);
-        ccp_execute(desc);
+        ccp_execute(s, id, desc);
         /* TODO: What is "access_len" ? */
         cpu_physical_memory_unmap(desc, req_len, false, 0);
         tail += sizeof(ccp5_desc);
@@ -208,17 +250,14 @@ static void ccp_process_q(CcpV5QState *qs) {
 
 static void ccp_queue_write(CcpV5State *s, hwaddr offset, uint32_t val,
                                 uint32_t id) {
-    CcpV5QState *qs;
-
-    /* TODO: Verify that queue exists ? */
-    qs = &s->q_states[id];
+    CcpV5QState *qs = &s->q_states[id];
     switch(offset) {
         case CCP_Q_CTRL_OFFSET:
             qs->ccp_q_control = val;
             qemu_log_mask(LOG_UNIMP,
                           "CCP: queue %d ctrl write (val = 0x%x)\n", id, val);
             if (val & CCP_Q_RUN) {
-                ccp_process_q(qs);
+                ccp_process_q(s, id);
             }
             break;
         case CCP_Q_TAIL_LO_OFFSET:
@@ -328,6 +367,12 @@ static uint64_t ccp_read(void *opaque, hwaddr offset, unsigned int size) {
         ret = ccp_ctrl_read(s,offset);
     } else if (offset < CCP_CONFIG_OFFSET) {
         /* CCP queue access */
+        if (id > CCP_Q_COUNT) {
+            /* This should never happen, but... */
+            qemu_log_mask(LOG_GUEST_ERROR, "CCP Error: Invalid queue id 0x%d\n",
+                          id);
+            return ret;
+        }
         id = (offset >> 12) - 1; // Make queue index start with 0
         ret = ccp_queue_read(s, offset & 0xfff, id);
     } else {
@@ -354,12 +399,13 @@ static void ccp_write(void *opaque, hwaddr offset,
         ccp_ctrl_write(s, offset, value);
     } else if (offset < CCP_CONFIG_OFFSET) {
         /* CCP queue access */
-        id = (offset >> 12);
         if (id > CCP_Q_COUNT) {
             /* This should never happen, but... */
             qemu_log_mask(LOG_GUEST_ERROR, "CCP Error: Invalid queue id 0x%d\n",
                           id);
+            return;
         }
+        id = (offset >> 12) - 1; // Make queue index start with 0
         ccp_queue_write(s, offset & 0xfff, value, id);
     } else {
         ccp_config_write(s,offset & 0xfff, value);

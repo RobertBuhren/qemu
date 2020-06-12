@@ -32,6 +32,11 @@
 #define CCP_CONFIG_SIZE      4096   /* Size of the general config region */
 #define CCP_Q_COUNT          5      /* Number of queues */
 
+/* Local storage block sizes */
+#define CCP_LSB_COUNT      128    /* Per queue local storage block count */
+#define CCP_LSB_SIZE       32     /* Single LSB size */
+#define CCP_LSB_TOTAL_SIZE   CCP_LSB_Q_SIZE * CCP_LSB_Q_COUNT  
+
 /* Global offsets */
 #define CCP_CTRL_OFFSET      0x0    /* Offset of the general control region */
 #define CCP_Q_OFFSET         0x1000 /* Offset of the first queue */
@@ -39,8 +44,8 @@
 
 /* Per queue offsets */
 #define CCP_Q_CTRL_OFFSET    0x0    /* Control register offset */
-#define CCP_Q_HEAD_LO_OFFSET 0x4    /* Queue Head register offset */
-#define CCP_Q_TAIL_LO_OFFSET 0x8    /* Queue Tail register offset */ 
+#define CCP_Q_HEAD_LO_OFFSET 0x4    /* Queue head register offset */
+#define CCP_Q_TAIL_LO_OFFSET 0x8    /* Queue tail register offset */ 
 #define CCP_Q_STATUS_OFFSET  0x100  /* Queue status register offset */
 
 /* Global registers */
@@ -65,6 +70,18 @@
 #define CCP_MMIO_SIZE CCP_Q_COUNT * CCP_Q_SIZE + \
         CCP_CTRL_SIZE + CCP_CONFIG_SIZE
 
+/* The global local storage block */
+typedef struct CcpV5Lsb {
+    union {
+        /* A single slot */
+        struct {
+            uint8_t data[CCP_LSB_SIZE];
+        } slots[CCP_LSB_COUNT];
+        /* Contigious view of the LSB */
+        uint8_t lsb[CCP_LSB_SIZE * CCP_LSB_COUNT];
+    } u;
+} CcpV5Lsb;
+
 typedef struct CcpV5QState {
   uint32_t ccp_q_control;
   uint32_t ccp_q_tail;
@@ -80,6 +97,8 @@ typedef struct CcpV5State {
     MemoryRegion iomem;
 
     CcpV5QState q_states[CCP_Q_COUNT];
+
+    CcpV5Lsb lsb;
 
 } CcpV5State;
 
