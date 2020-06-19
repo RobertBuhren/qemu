@@ -21,6 +21,7 @@
 
 #include "hw/sysbus.h"
 #include "exec/memory.h"
+#include "hw/misc/ccpv5-nettle.h"
 
 #define TYPE_CCP_V5 "amd.ccpV5"
 #define CCP_V5(obj) OBJECT_CHECK(CcpV5State, (obj), TYPE_CCP_V5)
@@ -99,6 +100,8 @@ typedef struct CcpV5State {
     CcpV5QState q_states[CCP_Q_COUNT];
 
     CcpV5Lsb lsb;
+
+    CcpV5ShaCtx sha_ctx;
 
 } CcpV5State;
 

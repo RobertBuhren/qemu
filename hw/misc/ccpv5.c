@@ -16,6 +16,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include <nettle/sha2.h>
+#include <byteswap.h>
 #include "qemu/osdep.h"
 #include "qapi/error.h"
 #include "qemu/module.h"
@@ -31,6 +33,56 @@
 #include "qemu/log.h"
 #include "hw/misc/ccpv5.h"
 #include "hw/misc/ccpv5-linux.h"
+#include "hw/misc/ccpv5-nettle.h"
+#include "crypto/hash.h"
+
+/* TODO Document*/
+static void ccp_reverse_buf(uint8_t *buf, size_t len) {
+    uint8_t tmp;
+    uint8_t* buf_top = buf + len - 1;
+
+    while (buf < buf_top) {
+        tmp = *buf;
+        *buf = *buf_top;
+        *buf_top = tmp;
+        buf++;
+        buf_top--;
+    }
+}
+
+/* memcpy with ccp bitwise and byteswap ops */
+
+static void ccp_memcpy(void *dst, void *src, size_t len, ccp_pt_bitwise bwise,
+                       ccp_pt_byteswap bswap) {
+
+    if (bwise != CCP_PASSTHRU_BITWISE_NOOP) {
+        qemu_log_mask(LOG_UNIMP, "CCP: Error unimplemeted bitwise op: %d\n",
+                      bwise);
+        return;
+    }
+
+    if (bwise == CCP_PASSTHRU_BITWISE_NOOP &&
+        bswap == CCP_PASSTHRU_BYTESWAP_NOOP) {
+        /* Normal memcpy */
+        memcpy(dst, src, len);
+        return;
+    }
+
+    if (bswap == CCP_PASSTHRU_BYTESWAP_256BIT) {
+        /* For now, we only support swap-size aligned ops */
+        if(len % 0x20) {
+            qemu_log_mask(LOG_UNIMP, "CCP: Error, unaligned bswap op is not" \
+                                     " supported yet\n");
+            return;
+        }
+        /* TODO clean up */
+        memcpy(dst, src, len);
+        ccp_reverse_buf(dst, len);
+
+    }
+
+
+}
 
 static uint32_t ccp_queue_read(CcpV5State *s, hwaddr offset, uint32_t id) {
     uint32_t ret;
@@ -73,6 +125,7 @@ static void ccp_in_guest_pt(CcpV5State *s, uint32_t id, hwaddr dst, hwaddr src,
     /* TODO: Ensure that we don't access un-accessible memory regions *
      *       Test whether dst - dst + len is within SRAM.
      *       Verify that we don't overflow any host memory.
+     *       Cleanup mappings on early return.
      */
     void* hdst;
     void* hsrc;
@@ -82,7 +135,8 @@ static void ccp_in_guest_pt(CcpV5State *s, uint32_t id, hwaddr dst, hwaddr src,
     bool sclean = false;
 
     if (bwise != CCP_PASSTHRU_BITWISE_NOOP ||
-        bswap != CCP_PASSTHRU_BYTESWAP_NOOP) {
+        (bswap != CCP_PASSTHRU_BYTESWAP_NOOP &&
+        bswap != CCP_PASSTHRU_BYTESWAP_256BIT)) {
 
         qemu_log_mask(LOG_UNIMP, "CCP: Unimplemented passthrough bit ops: " \
                       "bitwise 0x%x byteswap 0x%x\n", bwise, bswap);
@@ -137,8 +191,7 @@ static void ccp_in_guest_pt(CcpV5State *s, uint32_t id, hwaddr dst, hwaddr src,
     qemu_log_mask(LOG_UNIMP, "CCP: Performing passthrough. Copying 0x%x " \
                   "bytes from 0x%" HWADDR_PRIx " to 0x%" HWADDR_PRIx "\n",
                   len, src, dst);
-
-    memcpy(hdst, hsrc, len);
+    ccp_memcpy(hdst, hsrc, len, bwise, bswap);
 
     if (dclean)
         cpu_physical_memory_unmap(hdst, len, true, 0);
@@ -171,6 +224,92 @@ static void ccp_passthrough(CcpV5State *s, uint32_t id, ccp5_desc *desc) {
     ccp_in_guest_pt(s, id, dst, src, cbytes, dst_type, src_type, bwise, bswap);
 }
 
+static void ccp_perform_sha_256(CcpV5State *s, hwaddr src, uint32_t len, bool eom, bool init, uint8_t* lsb_ctx) {
+    /* TODO: use nettle. See: https://www.gnutls.org/manual/html_node/Using-GnuTLS-as-a-cryptographic-library.html#Using-GnuTLS-as-a-cryptographic-library */
+
+    void* hsrc;
+    hwaddr plen;
+    plen = len;
+    qemu_log_mask(LOG_UNIMP, "CCP SHA256: in perf: len = 0x%x\n",len);
+
+    if (init) {
+        /* Init new SHA256 context */
+        if (s->sha_ctx.raw != NULL) {
+            qemu_log_mask(LOG_GUEST_ERROR, "CCP Error: SHA context already initialized\n");
+            /* TODO: Quit emulation ? */
+            return;
+        }
+        ccp_init_sha256_ctx(&s->sha_ctx);
+    }
+    if(s->sha_ctx.raw != NULL) {
+        hsrc = cpu_physical_memory_map(src, &plen, false);
+        if (plen != len) {
+            qemu_log_mask(LOG_GUEST_ERROR, "CCP Error: Couldn't map guest memory\n");
+            return;
+        }
+        if (hsrc != NULL) {
+            ccp_update_sha256(&s->sha_ctx, len, hsrc);
+        } else {
+            qemu_log_mask(LOG_GUEST_ERROR, "CCP Error: Couldn't map guest memory\n");
+            return;
+        }
+        if (eom) {
+            ccp_digest_sha256(&s->sha_ctx, lsb_ctx);
+            /* The CCP seems to store the digest in reversed order -> Do as the
+             * CCP would do, even if it means we reverse it again when the 
+             * digest is copied from the lsb to the PSP again.
+             */
+            ccp_reverse_buf(lsb_ctx, 32); // 32 -> SHA256 digest size 
+            cpu_physical_memory_unmap(hsrc, plen, false, 0);
+        }
+
+    } else {
+        qemu_log_mask(LOG_GUEST_ERROR, "CCP Error: SHA context not initialized\n");
+        return;
+    }
+
+
+
+
+}
+
+static void ccp_sha(CcpV5State *s, uint32_t id, ccp5_desc *desc) {
+    ccp_function func;
+    bool init;
+    bool eom;
+    hwaddr src;
+    uint32_t len;
+    uint64_t sha_len;
+    uint32_t ctx_id;
+    uint8_t* ctx;
+
+    func.raw = CCP5_CMD_FUNCTION(desc);
+    init = CCP5_CMD_INIT(desc);
+    eom = CCP5_CMD_EOM(desc);
+    len = CCP5_CMD_LEN(desc);
+    src = CCP5_CMD_SRC_LO(desc) | ((hwaddr)(CCP5_CMD_SRC_HI(desc)) << 32);
+    sha_len = CCP5_CMD_SHA_LO(desc) | ((uint64_t)(CCP5_CMD_SHA_HI(desc)) << 32);
+    ctx_id = CCP5_CMD_LSB_ID(desc);
+    
+    ctx = s->lsb.u.slots[ctx_id].data;
+
+    switch (func.sha.type) {
+        case CCP_SHA_TYPE_256:
+            qemu_log_mask(LOG_UNIMP, "CCP SHA256: src 0x%" HWADDR_PRIx " len" \
+                          " 0x%x sha_len 0x%lx init 0x%d eom 0x%d ctx_id %d\n",
+                          src, len, sha_len, init, eom, ctx_id);
+            ccp_perform_sha_256(s, src, len, eom, init, ctx);
+
+            break;
+        default:
+            qemu_log_mask(LOG_UNIMP, "CCP Error. Unimplemented SHA type %d\n", 
+                          func.sha.type);
+            break;
+
+    }
+
+}
+
 static void ccp_execute(CcpV5State *s, uint32_t id, ccp5_desc *desc) {
 
     ccp_engine engine = CCP5_CMD_ENGINE(desc);
@@ -187,7 +326,7 @@ static void ccp_execute(CcpV5State *s, uint32_t id, ccp5_desc *desc) {
             qemu_log_mask(LOG_UNIMP, "CCP: Unimplemented engine (DES3)\n");
             break;
         case CCP_ENGINE_SHA:
-            qemu_log_mask(LOG_UNIMP, "CCP: Unimplemented engine (SHA)\n");
+            ccp_sha(s, id, desc);
             break;
         case CCP_ENGINE_RSA:
             qemu_log_mask(LOG_UNIMP, "CCP: Unimplemented engine (RSA)\n");
@@ -236,7 +375,7 @@ static void ccp_process_q(CcpV5State *s, uint32_t id) {
         desc = cpu_physical_memory_map(tail, &req_len, false);
         ccp_execute(s, id, desc);
         /* TODO: What is "access_len" ? */
-        cpu_physical_memory_unmap(desc, req_len, false, 0);
+        cpu_physical_memory_unmap(desc, req_len, false, sizeof(ccp5_desc));
         tail += sizeof(ccp5_desc);
 
     }
@@ -445,6 +584,7 @@ static void ccp_init(Object *obj) {
     sysbus_init_mmio(sbd, &s->iomem);
 
     ccp_init_q(s);
+    s->sha_ctx.raw = NULL;
 
 }
 
