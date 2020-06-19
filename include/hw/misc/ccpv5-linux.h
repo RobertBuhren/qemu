@@ -20,6 +20,96 @@
  * drivers/crypto/ccp/ccp-dev.h and include/linux/ccp.h
  */
 
+/***** AES engine *****/
+/**
+ * ccp_aes_type - AES key size
+ *
+ * @CCP_AES_TYPE_128: 128-bit key
+ * @CCP_AES_TYPE_192: 192-bit key
+ * @CCP_AES_TYPE_256: 256-bit key
+ */
+enum ccp_aes_type {
+	CCP_AES_TYPE_128 = 0,
+	CCP_AES_TYPE_192,
+	CCP_AES_TYPE_256,
+	CCP_AES_TYPE__LAST,
+};
+
+/**
+ * ccp_aes_mode - AES operation mode
+ *
+ * @CCP_AES_MODE_ECB: ECB mode
+ * @CCP_AES_MODE_CBC: CBC mode
+ * @CCP_AES_MODE_OFB: OFB mode
+ * @CCP_AES_MODE_CFB: CFB mode
+ * @CCP_AES_MODE_CTR: CTR mode
+ * @CCP_AES_MODE_CMAC: CMAC mode
+ */
+enum ccp_aes_mode {
+	CCP_AES_MODE_ECB = 0,
+	CCP_AES_MODE_CBC,
+	CCP_AES_MODE_OFB,
+	CCP_AES_MODE_CFB,
+	CCP_AES_MODE_CTR,
+	CCP_AES_MODE_CMAC,
+	CCP_AES_MODE_GHASH,
+	CCP_AES_MODE_GCTR,
+	CCP_AES_MODE_GCM,
+	CCP_AES_MODE_GMAC,
+	CCP_AES_MODE__LAST,
+};
+
+/**
+ * ccp_aes_mode - AES operation mode
+ *
+ * @CCP_AES_ACTION_DECRYPT: AES decrypt operation
+ * @CCP_AES_ACTION_ENCRYPT: AES encrypt operation
+ */
+enum ccp_aes_action {
+	CCP_AES_ACTION_DECRYPT = 0,
+	CCP_AES_ACTION_ENCRYPT,
+	CCP_AES_ACTION__LAST,
+};
+/* Overloaded field */
+#define	CCP_AES_GHASHAAD	CCP_AES_ACTION_DECRYPT
+#define	CCP_AES_GHASHFINAL	CCP_AES_ACTION_ENCRYPT
+
+/***** SHA engine *****/
+/**
+ * ccp_sha_type - type of SHA operation
+ *
+ * @CCP_SHA_TYPE_1: SHA-1 operation
+ * @CCP_SHA_TYPE_224: SHA-224 operation
+ * @CCP_SHA_TYPE_256: SHA-256 operation
+ */
+enum ccp_sha_type {
+	CCP_SHA_TYPE_1 = 1,
+	CCP_SHA_TYPE_224,
+	CCP_SHA_TYPE_256,
+	CCP_SHA_TYPE_384,
+	CCP_SHA_TYPE_512,
+	CCP_SHA_TYPE__LAST,
+};
+
+/***** XTS-AES engine *****/
+/**
+ * ccp_xts_aes_unit_size - XTS unit size
+ *
+ * @CCP_XTS_AES_UNIT_SIZE_16: Unit size of 16 bytes
+ * @CCP_XTS_AES_UNIT_SIZE_512: Unit size of 512 bytes
+ * @CCP_XTS_AES_UNIT_SIZE_1024: Unit size of 1024 bytes
+ * @CCP_XTS_AES_UNIT_SIZE_2048: Unit size of 2048 bytes
+ * @CCP_XTS_AES_UNIT_SIZE_4096: Unit size of 4096 bytes
+ */
+enum ccp_xts_aes_unit_size {
+	CCP_XTS_AES_UNIT_SIZE_16 = 0,
+	CCP_XTS_AES_UNIT_SIZE_512,
+	CCP_XTS_AES_UNIT_SIZE_1024,
+	CCP_XTS_AES_UNIT_SIZE_2048,
+	CCP_XTS_AES_UNIT_SIZE_4096,
+	CCP_XTS_AES_UNIT_SIZE__LAST,
+};
+
 typedef enum ccp_memtype {
 	CCP_MEMTYPE_SYSTEM = 0,
 	CCP_MEMTYPE_SB,
