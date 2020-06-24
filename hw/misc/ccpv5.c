@@ -16,7 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include <nettle/sha2.h>
 #include <byteswap.h>
 #include "qemu/osdep.h"
 #include "qapi/error.h"
@@ -35,6 +34,8 @@
 #include "hw/misc/ccpv5-linux.h"
 #include "hw/misc/ccpv5-nettle.h"
 #include "crypto/hash.h"
+/* TODO: Restrict access to specific MemoryRegions only.
+ *       Verify correct use of cpu_physical_memory_map/unmap */
 
 /* TODO Document*/
 static void ccp_reverse_buf(uint8_t *buf, size_t len) {
@@ -232,13 +233,8 @@ static void ccp_perform_sha_256(CcpV5State *s, hwaddr src, uint32_t len, bool eo
     plen = len;
     qemu_log_mask(LOG_UNIMP, "CCP SHA256: in perf: len = 0x%x\n",len);
 
-    if (init) {
+    if (s->sha_ctx.raw == NULL) {
         /* Init new SHA256 context */
-        if (s->sha_ctx.raw != NULL) {
-            qemu_log_mask(LOG_GUEST_ERROR, "CCP Error: SHA context already initialized\n");
-            /* TODO: Quit emulation ? */
-            return;
-        }
         ccp_init_sha256_ctx(&s->sha_ctx);
     }
     if(s->sha_ctx.raw != NULL) {
@@ -359,11 +355,11 @@ static void ccp_process_q(CcpV5State *s, uint32_t id) {
 
     qs = &s->q_states[id];
     qemu_log_mask(LOG_UNIMP,
-                  "CCP: queue %d start cmd at 0x%x\n",
-                  qs->ccp_q_id, qs->ccp_q_tail);
+                  "CCP: queue %d start cmd tail 0x%x head 0x%x\n",
+                  qs->ccp_q_id, qs->ccp_q_tail, qs->ccp_q_head);
 
-    /* Clear RUN and HALT bit */
-    qs->ccp_q_control &= ~((CCP_Q_RUN | CCP_Q_CTRL_HALT));
+    /* Clear HALT bit */
+    qs->ccp_q_control &= ~((CCP_Q_CTRL_HALT));
 
     /* TODO fix tail/head data types? */
     tail = qs->ccp_q_tail;
@@ -395,9 +391,6 @@ static void ccp_queue_write(CcpV5State *s, hwaddr offset, uint32_t val,
             qs->ccp_q_control = val;
             qemu_log_mask(LOG_UNIMP,
                           "CCP: queue %d ctrl write (val = 0x%x)\n", id, val);
-            if (val & CCP_Q_RUN) {
-                ccp_process_q(s, id);
-            }
             break;
         case CCP_Q_TAIL_LO_OFFSET:
             qs->ccp_q_tail = val;
@@ -416,7 +409,12 @@ static void ccp_queue_write(CcpV5State *s, hwaddr offset, uint32_t val,
             break;
         default:
             qemu_log_mask(LOG_UNIMP, "CCP: CCP queue write at unknown " \
-                          "offset: 0x%" HWADDR_PRIx "\n", offset);
+                          "offset: 0x%" HWADDR_PRIx " val 0x%x\n", offset, val);
+    }
+    /*TODO: Is this the correct place to start processing the queue? Or should
+     * we only start the queue on head/tail writes? */
+    if (qs->ccp_q_control & CCP_Q_RUN) {
+        ccp_process_q(s, id);
     }
     return;
 }
