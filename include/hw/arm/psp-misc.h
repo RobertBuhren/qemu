@@ -40,7 +40,7 @@ typedef struct PSPMiscState {
     PSPMiscReg *regs;
 
     /* Size of MMIO region covered by this instance */
-    uint32_t mmio_size;
+    uint64_t mmio_size;
 
     /* Identifier of this instance */
     char *ident;

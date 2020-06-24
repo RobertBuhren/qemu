@@ -120,7 +120,7 @@ static void psp_misc_init(Object *obj)
     PSPMiscState *s = PSP_MISC(obj);
     
     /* TODO: What is the difference to e.g. DEFINE_PROP_UINT32 ? */
-    object_property_add_uint32_ptr(obj,"psp_misc_msize", &s->mmio_size,
+    object_property_add_uint64_ptr(obj,"psp_misc_msize", &s->mmio_size,
                                    OBJ_PROP_FLAG_READWRITE, &error_abort);
     
     object_property_add_str(obj,"psp_misc_ident",psp_misc_get_identifier,
