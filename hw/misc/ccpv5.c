@@ -359,7 +359,9 @@ static void ccp_process_q(CcpV5State *s, uint32_t id) {
                   qs->ccp_q_id, qs->ccp_q_tail, qs->ccp_q_head);
 
     /* Clear HALT bit */
-    qs->ccp_q_control &= ~((CCP_Q_CTRL_HALT));
+    /* Clear RUN bit. TODO: The secure OS never re-sets the RUN bit. We need
+     * to figure out how/when we really clear this bit */
+    qs->ccp_q_control &= ~((CCP_Q_CTRL_HALT | CCP_Q_RUN));
 
     /* TODO fix tail/head data types? */
     tail = qs->ccp_q_tail;
