@@ -28,7 +28,7 @@
 #define PSP_SMN_SLOT_SIZE 1024 * 1024 /* 1M */
 #define PSP_SMN_SLOT_COUNT 32
 #define PSP_SMN_SLOT_NAME_LEN  20
-#define PSP_SMN_SLOT_NAME "psp-slot_"
+#define PSP_SMN_SLOT_NAME "smn-slot_"
 
 /* Flash base address for Zen1 */
 #define PSP_SMN_FLASH_BASE 0xa000000
