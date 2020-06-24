@@ -31,9 +31,12 @@
 #include "hw/arm/psp.h"
 #include "hw/arm/psp-misc.h"
 #include "hw/arm/psp-smn.h"
+#include "hw/arm/psp-x86.h"
 #include "hw/arm/psp-timer.h"
 #include "hw/arm/psp-sts.h"
 #include "qemu/log.h"
+
+/* TODO: use mmio_map_overlap with memory_regions_dispatch_rw to log access to SPI flash */
 
 PspGeneration PspNameToGen(const char* name) {
   /* TODO: Make the generation a property of the "psp" class */
@@ -126,6 +129,9 @@ static void amd_psp_init(Object *obj) {
     object_initialize_child(obj, "smn", &s->smn, sizeof(s->smn),
                             TYPE_PSP_SMN, &error_abort, NULL);
 
+    object_initialize_child(obj, "x86", &s->x86, sizeof(s->x86),
+                            TYPE_PSP_X86, &error_abort, NULL);
+
     object_initialize_child(obj, "base_mem", &s->base_mem, sizeof(s->base_mem),
                             TYPE_PSP_MISC, &error_abort, NULL);
     
@@ -164,6 +170,11 @@ static void amd_psp_realize(DeviceState *dev, Error **errp) {
 
     object_property_set_bool(OBJECT(&s->smn), true, "realized" , &error_abort);
 
+    object_property_set_uint(OBJECT(&s->x86), PSP_X86_BASE, 
+                             "x86-container-base", &error_abort);
+
+    object_property_set_bool(OBJECT(&s->x86), true, "realized" , &error_abort);
+
     /* TODO: refactor instantiation of "base_mem" into a dedicated init 
      * function: base_mem_init().
      */
@@ -201,6 +212,15 @@ static void amd_psp_realize(DeviceState *dev, Error **errp) {
 
     /* Map SMN control registers */
     sysbus_mmio_map(SYS_BUS_DEVICE(&s->smn), 0, PSP_SMN_CTRL_BASE);
+
+    /* Map X86 control registers */
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->x86), 0, PSP_X86_CTRL1_BASE);
+    
+    /* Map X86 control registers */
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->x86), 1, PSP_X86_CTRL2_BASE);
+
+    /* Map X86 control registers */
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->x86), 2, PSP_X86_CTRL3_BASE);
 
     /* Map timers */
     sysbus_mmio_map(SYS_BUS_DEVICE(&s->timer1), 0, PSP_TIMER1_BASE);

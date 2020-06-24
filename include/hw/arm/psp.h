@@ -24,6 +24,7 @@
 #include "target/arm/cpu.h"
 #include "hw/arm/psp-misc.h"
 #include "hw/arm/psp-smn.h"
+#include "hw/arm/psp-x86.h"
 #include "hw/arm/psp-timer.h"
 #include "hw/arm/psp-sts.h"
 #include "hw/misc/ccpv5.h"
@@ -32,6 +33,10 @@
 #define AMD_PSP(obj) OBJECT_CHECK(AmdPspState, (obj), TYPE_AMD_PSP)
 
 #define PSP_SMN_CTRL_BASE 0x03220000
+#define PSP_X86_CTRL1_BASE 0x03230000
+#define PSP_X86_CTRL2_BASE 0x032303e0
+#define PSP_X86_CTRL3_BASE 0x032304d8
+
 #define PSP_TIMER1_BASE 0x03010400
 #define PSP_TIMER2_BASE 0x03010424
 
@@ -84,6 +89,9 @@ typedef struct AmdPspState {
 
   /* This device represents the SMN address space including control registers */
   PSPSmnState smn;
+
+  /* This device represents the x86 address space */
+  PSPX86State x86;
 
   /* PSP Timer 1 at 0x03010400*/
   PSPTimerState timer1;
