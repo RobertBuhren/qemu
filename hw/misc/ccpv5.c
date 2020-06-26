@@ -253,7 +253,7 @@ static void ccp_perform_sha_256(CcpV5State *s, hwaddr src, uint32_t len, bool eo
             ccp_digest_sha256(&s->sha_ctx, lsb_ctx);
             /* The CCP seems to store the digest in reversed order -> Do as the
              * CCP would do, even if it means we reverse it again when the 
-             * digest is copied from the lsb to the PSP again.
+             * digest is copied from the lsb to the PSP.
              */
             ccp_reverse_buf(lsb_ctx, 32); // 32 -> SHA256 digest size 
             cpu_physical_memory_unmap(hsrc, plen, false, 0);
@@ -306,6 +306,134 @@ static void ccp_sha(CcpV5State *s, uint32_t id, ccp5_desc *desc) {
 
 }
 
+/* TODO: Check all map/unmap for whether the mapping actually succeeded */
+static void ccp_copy_to_host(CcpV5State *s, void* hdst, hwaddr src, ccp_memtype stype, size_t len) {
+    void *hsrc = NULL;
+    hwaddr plen = len;
+
+    if (stype == CCP_MEMTYPE_LOCAL) {
+        hsrc = cpu_physical_memory_map(src, &plen, false);
+        memcpy(hdst, hsrc, len);
+        cpu_physical_memory_unmap(hsrc, len, false, plen);
+    } else if (stype == CCP_MEMTYPE_SB) {
+        hsrc = s->lsb.u.lsb + src;
+        memcpy(hdst, hsrc, len);
+
+    }
+
+
+}
+
+static void ccp_copy_to_guest(CcpV5State *s, hwaddr dst, void* hsrc, ccp_memtype dtype, size_t len) {
+    void *hdst = NULL;
+    hwaddr plen = len;
+
+    if(dtype == CCP_MEMTYPE_LOCAL) {
+        /* TODO: Check for error */
+        hdst = cpu_physical_memory_map(dst, &plen, true);
+        memcpy(hdst, hsrc, plen);
+        cpu_physical_memory_unmap(hdst, plen, true, plen);
+    } else if (dtype == CCP_MEMTYPE_SB) {
+        hdst = s->lsb.u.lsb + dst;
+        memcpy(hdst, hsrc, len);
+    }
+
+}
+
+/* TODO use ccp_copy_to_host instead */
+/* static void ccp_get_key(CcpV5State* s,ccp5_desc *desc, void *buffer, size_t key_len) { */
+/*     hwaddr key_addr; */
+/*     hwaddr klen = key_len; */
+/*     void* src = NULL; */
+
+/*     key_addr = CCP5_CMD_KEY_LO(desc) | ((hwaddr)(CCP5_CMD_KEY_HI(desc)) << 32); */
+/*     if (CCP5_CMD_KEY_MEM(desc) == CCP_MEMTYPE_LOCAL) { */
+/*         src = cpu_physical_memory_map(key_addr, &klen, false); */
+/*         if (klen != key_len) { */
+/*             qemu_log_mask(LOG_GUEST_ERROR, "CCP Error. Couldn't map guest memory\n"); */
+/*         } */
+/*         memcpy(buffer, src, key_len); */
+/*         cpu_physical_memory_unmap(src, klen, false, klen); */
+/*     } else if (CCP5_CMD_KEY_MEM(desc) == CCP_MEMTYPE_SB) { */
+/*         /1* TODO Ensure correct length *1/ */
+/*         src = s->lsb.u.lsb + key_addr; */
+/*         memcpy(buffer, src, key_len); */
+/*     } */
+
+
+/* } */
+
+static void ccp_rsa(CcpV5State *s, uint32_t id, ccp5_desc *desc) {
+    uint16_t rsa_size;
+    uint16_t rsa_mode;
+    ccp_function func;
+    bool init;
+    bool eom;
+    uint32_t len;
+    ccp_memtype rsa_key_mtype;
+    ccp_memtype rsa_src_mtype;
+    ccp_memtype rsa_dst_mtype;
+    hwaddr rsa_key_addr;
+    hwaddr rsa_src;
+    hwaddr rsa_dst;
+    CcpV5RsaPubKey rsa_pubkey;
+
+    uint8_t rsa_exp[256]; /* Only 2048 for now */
+    uint8_t rsa_mod[256]; /* Only 2048 for now */
+    uint8_t rsa_msg[256];           /* Assuming it is a signature with length equal to the modulus */
+    uint8_t rsa_result[256];
+
+
+
+    func.raw = CCP5_CMD_FUNCTION(desc);
+    init = CCP5_CMD_INIT(desc);
+    eom = CCP5_CMD_EOM(desc);
+    len = CCP5_CMD_LEN(desc);
+    rsa_size = func.rsa.size;
+    rsa_mode = func.rsa.mode;
+    rsa_key_mtype = CCP5_CMD_KEY_MEM(desc);
+    rsa_src_mtype = CCP5_CMD_SRC_MEM(desc);
+    rsa_dst_mtype = CCP5_CMD_SRC_MEM(desc);
+
+    rsa_key_addr = CCP5_CMD_KEY_LO(desc) | ((hwaddr)(CCP5_CMD_KEY_HI(desc)) << 32);
+    rsa_src = CCP5_CMD_SRC_LO(desc) | ((hwaddr)(CCP5_CMD_SRC_HI(desc)) << 32);
+    rsa_dst = CCP5_CMD_DST_LO(desc) | ((hwaddr)(CCP5_CMD_DST_HI(desc)) << 32);
+
+
+    qemu_log_mask(LOG_UNIMP, "CCP RSA: src 0x%x len 0x%x dst" \
+                  " 0x%lx dst_type 0x%d rsa_mode 0x%x rsa_size 0x%x eom 0x%d init %d\n",
+                  desc->src_lo, len, rsa_dst, rsa_dst_mtype, rsa_mode, rsa_size, eom, init);
+    if (rsa_mode == 0 && ( rsa_size == 256 && len == 512)) {
+
+        /* TODO consistent naming */
+        rsa_pubkey.rsa_len = rsa_size;
+
+        /* TODO: Use guest memory ?*/
+
+        /* Copy RSA exponent */
+        ccp_copy_to_host(s, rsa_exp, rsa_key_addr, rsa_key_mtype, rsa_size);
+
+        /* Copy RSA modulus
+         * "rsa_src" contains the modulus, follwed by the message
+         */
+        ccp_copy_to_host(s, rsa_mod, rsa_src, rsa_src_mtype, rsa_size);
+
+        /* Copy RSA message (signature) */
+        ccp_copy_to_host(s, rsa_msg, rsa_src + rsa_size , rsa_src_mtype, rsa_size);
+
+        ccp_rsa_init_key(&rsa_pubkey, rsa_mod, rsa_exp);
+
+
+        ccp_rsa_encrypt(&rsa_pubkey, rsa_msg, rsa_result);
+
+        ccp_rsa_clear_key(&rsa_pubkey);
+
+        ccp_copy_to_guest(s, rsa_dst, rsa_result, rsa_dst_mtype, rsa_size);
+
+    }
+
+}
+
 static void ccp_execute(CcpV5State *s, uint32_t id, ccp5_desc *desc) {
 
     ccp_engine engine = CCP5_CMD_ENGINE(desc);
@@ -325,7 +453,7 @@ static void ccp_execute(CcpV5State *s, uint32_t id, ccp5_desc *desc) {
             ccp_sha(s, id, desc);
             break;
         case CCP_ENGINE_RSA:
-            qemu_log_mask(LOG_UNIMP, "CCP: Unimplemented engine (RSA)\n");
+            ccp_rsa(s, id, desc);
             break;
         case CCP_ENGINE_PASSTHRU:
             ccp_passthrough(s, id, desc);

@@ -22,6 +22,7 @@
 #ifndef AMD_CCP_V5_NETTLE_H
 #define AMD_CCP_V5_NETTLE_H
 #include <nettle/sha2.h>
+#include <nettle/rsa.h>
 #include <glib.h>
 
 /* TODO: Should this be in a dedicated c file? */
@@ -37,6 +38,14 @@ typedef union {
     struct sha384_ctx *ctx_384;
     void* raw;
 } CcpV5ShaCtx;
+
+typedef struct CcpV5RsaPubKey {
+    mpz_t mod;
+    mpz_t exp;
+    uint32_t rsa_len;
+} CcpV5RsaPubKey;
+
+/* typedef struct rsa_public_key CcpV5RsaPubKey; */
 
 static inline void ccp_init_sha256_ctx(CcpV5ShaCtx *ctx) {
     if(ctx != NULL) {
@@ -68,4 +77,38 @@ static inline void ccp_digest_sha256(CcpV5ShaCtx *ctx, uint8_t* lsb_ctx) {
     ccp_clear_sha_ctx(ctx);
 }
 
+static inline void ccp_rsa_init_key(CcpV5RsaPubKey *key, uint8_t *m, uint8_t *e) {
+
+    mpz_init(key->exp);
+    mpz_init(key->mod);
+
+    mpz_import(key->exp, key->rsa_len, -1, 1, 0, 0, e);
+    mpz_import(key->mod, key->rsa_len, -1, 1, 0, 0, m);
+
+}
+
+static inline void ccp_rsa_clear_key(CcpV5RsaPubKey *key) {
+    mpz_clear(key->exp);
+    mpz_clear(key->mod);
+    key->rsa_len = 0;
+
+}
+
+/* TODO: Check for errors */
+static inline void ccp_rsa_encrypt(CcpV5RsaPubKey *key, uint8_t *m, uint8_t *res) {
+    mpz_t result;
+    mpz_t message;
+
+    mpz_init(result);
+    mpz_init(message);
+    mpz_import(message, key->rsa_len, -1, 1, 0, 0, m);
+
+    mpz_powm(result, message, key->exp, key->mod);
+
+    mpz_export(res, NULL, -1, key->rsa_len, 0, 0, result);
+
+    mpz_clear(result);
+    mpz_clear(message);
+
+}
 #endif
