@@ -478,6 +478,7 @@ gtk_gl="no"
 tls_priority="NORMAL"
 gnutls=""
 nettle=""
+gmp="no"
 nettle_xts="no"
 gcrypt=""
 gcrypt_hmac="no"
@@ -1457,6 +1458,10 @@ for opt do
   ;;
   --enable-nettle) nettle="yes"
   ;;
+  --disable-gmp) gmp="no"
+  ;;
+  --enable-gmp) gmp="yes"
+  ;;
   --disable-gcrypt) gcrypt="no"
   ;;
   --enable-gcrypt) gcrypt="yes"
@@ -1807,6 +1812,7 @@ disabled with --disable-FEATURE, default is enabled if available:
 
   gnutls          GNUTLS cryptography support
   nettle          nettle cryptography support
+  gmp             GNU MP - GNU Multiple Precision Arithmetic Library support
   gcrypt          libgcrypt cryptography support
   auth-pam        PAM access control
   sdl             SDL UI
@@ -3024,6 +3030,36 @@ EOF
         feature_not_found "nettle" "Install nettle devel >= 2.7.1"
     else
         nettle="$pass"
+    fi
+fi
+
+if test "$gmp" != "no"; then
+    pass="no"
+    if $pkg_config --exists "gmp >= 5.0"; then
+        gmp_cflags=$($pkg_config --cflags gmp)
+        gmp_libs=$($pkg_config --libs gmp)
+        gmp_version=$($pkg_config --modversion gmp)
+        # Link test to make sure the given libraries work (e.g for static).
+        write_c_skeleton
+        if compile_prog "" "$gmp_libs" ; then
+            LIBS="$gmp_libs $LIBS"
+            QEMU_CFLAGS="$QEMU_CFLAGS $gmp_cflags"
+            pass="yes"
+        fi
+    fi
+    if test "$pass" = "yes"
+    then
+        cat > $TMPC << EOF
+#include <gmp.h>
+int main(void) {
+  return 0;
+}
+EOF
+    fi
+    if test "$pass" = "no" && test "$gmp" = "yes"; then
+        feature_not_found "gmp" "Install GNU MP >= 5.0"
+    else
+        gmp="$pass"
     fi
 fi
 
