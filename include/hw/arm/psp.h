@@ -107,13 +107,6 @@ typedef struct AmdPspState {
 
 } AmdPspState;
 
-/* Loads a binary blob into the PSP address space */
-void psp_load_firmware(AmdPspState *s, hwaddr addr);
-
-uint32_t PspGetSramAddr(PspGeneration gen);
-
-uint32_t PspGetSramSize(PspGeneration gen);
-
 const char* PspGenToName(PspGeneration gen);
 PspGeneration PspNameToGen(const char* name);
 

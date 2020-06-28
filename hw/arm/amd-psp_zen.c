@@ -34,12 +34,6 @@
 static void zen_init(MachineState *machine) {
 
     AmdPspState *psp;
-    /* TODO: Make gen a property of the Soc */
-    PspGeneration gen = PspNameToGen("Zen");
-    uint32_t sram_size = PspGetSramSize(gen);
-    (void)sram_size;
-    (void)gen;
-
 
     psp = AMD_PSP(object_new(TYPE_AMD_PSP));
     object_property_add_child(OBJECT(machine), "soc", OBJECT(psp),
@@ -65,7 +59,7 @@ static void psp_zen_machine_init(MachineClass *mc) {
     mc->min_cpus = 1;
     mc->max_cpus = 1;
     mc->default_cpus = 1;
-    mc->default_cpu_type = ARM_CPU_TYPE_NAME("cortex-a8");
+    mc->default_cpu_type = ARM_CPU_TYPE_NAME("cortex-a9");
     /* The PSP does not have ram, however the generic-loader device apparently
      * validates this value, so we set it here to an sufficiently large value
      * TODO: Verify that this has not other, unwanted side-effects.
