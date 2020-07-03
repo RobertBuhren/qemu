@@ -28,12 +28,20 @@
 #include "qapi/error.h"
 #include "hw/qdev-properties.h"
 #include "hw/boards.h"
+#include "hw/char/serial.h"
 #include "hw/loader.h"
 #include "hw/arm/psp.h"
 #include "qemu/log.h"
 #include "hw/arm/psp-x86.h"
 
-static PSPMiscReg psp_regs[] = { 0 };
+static PSPMiscReg psp_regs[] = { 
+    {
+        /* The off chip bootloader waits for bits 0-2 to be set. */
+        .addr = 0xfed81e77,
+        .val = 0x7,
+    },
+
+};
 /* TODO: Refactor read/write methods */
 
 static uint32_t psp_x86_ctrl_read(PSPX86State *s, uint32_t slot_id,
@@ -321,6 +329,10 @@ static void psp_x86_realize(DeviceState *dev, Error **errp) {
     /* The X86 address space. Independent from the PSP address space */
     memory_region_init(&s->psp_x86_space, OBJECT(dev), "x86-address-space",
                        (1UL << 48) /* 48 physical address bits */);
+
+    /* A MMIO accessible UART */
+    serial_mm_init(&s->psp_x86_space, 0xfffdfc0003f8, 0,
+                   0, 115200, serial_hd(0), DEVICE_NATIVE_ENDIAN);
 
     /* Connect the misc device to the x86 address space */
     /* TODO: Is this the way to go? ... */
