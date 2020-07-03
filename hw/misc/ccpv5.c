@@ -38,6 +38,21 @@
  *       Verify correct use of cpu_physical_memory_map/unmap */
 
 /* TODO Document*/
+static void ccp_process_q(CcpV5State *s, uint32_t id);
+
+static void ccp_timer_cb(void *opaque)
+{
+    CcpV5State *s = CCP_V5(opaque);
+
+    if (s->dma_timer_qid != -1) {
+        ccp_process_q(s, s->dma_timer_qid);
+        s->dma_timer_qid = -1;
+    } else {
+        qemu_log_mask(LOG_GUEST_ERROR, "CCP Error: Timer fired, but no queue ID set\n");
+
+    }
+}
+
 static void ccp_reverse_buf(uint8_t *buf, size_t len) {
     uint8_t tmp;
     uint8_t* buf_top = buf + len - 1;
@@ -519,6 +534,17 @@ static void ccp_queue_write(CcpV5State *s, hwaddr offset, uint32_t val,
     switch(offset) {
         case CCP_Q_CTRL_OFFSET:
             qs->ccp_q_control = val;
+            /*TODO: Is this the correct place to start processing the queue? Or should
+             * we only start the queue on head/tail writes? */
+            if (qs->ccp_q_control & CCP_Q_RUN) {
+                /* Process the request in 100ns from now */
+                if (s->dma_timer_qid == -1) {
+                    s->dma_timer_qid = id;
+                    timer_mod(&s->dma_timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + 100);
+                } else {
+                    qemu_log_mask(LOG_GUEST_ERROR, "CCP Error: Can't program timer. A CCP request is already pending.\n");
+                }
+            }
             qemu_log_mask(LOG_UNIMP,
                           "CCP: queue %d ctrl write (val = 0x%x)\n", id, val);
             break;
@@ -540,11 +566,6 @@ static void ccp_queue_write(CcpV5State *s, hwaddr offset, uint32_t val,
         default:
             qemu_log_mask(LOG_UNIMP, "CCP: CCP queue write at unknown " \
                           "offset: 0x%" HWADDR_PRIx " val 0x%x\n", offset, val);
-    }
-    /*TODO: Is this the correct place to start processing the queue? Or should
-     * we only start the queue on head/tail writes? */
-    if (qs->ccp_q_control & CCP_Q_RUN) {
-        ccp_process_q(s, id);
     }
     return;
 }
@@ -705,6 +726,8 @@ static void ccp_init(Object *obj) {
     CcpV5State *s = CCP_V5(obj);
     SysBusDevice *sbd = SYS_BUS_DEVICE(obj);
 
+    timer_init_ns(&s->dma_timer, QEMU_CLOCK_VIRTUAL, ccp_timer_cb, s);
+    s->dma_timer_qid = -1;
 
     memory_region_init_io(&s->iomem, obj, &ccp_mem_ops, s,
             TYPE_CCP_V5, CCP_MMIO_SIZE);

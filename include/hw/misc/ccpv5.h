@@ -22,6 +22,7 @@
 #include "hw/sysbus.h"
 #include "exec/memory.h"
 #include "hw/misc/ccpv5-nettle.h"
+#include "qemu/timer.h"
 
 #define TYPE_CCP_V5 "amd.ccpV5"
 #define CCP_V5(obj) OBJECT_CHECK(CcpV5State, (obj), TYPE_CCP_V5)
@@ -103,7 +104,14 @@ typedef struct CcpV5State {
 
     CcpV5ShaCtx sha_ctx;
 
-} CcpV5State;
+    /* Timer to process QUEUE events "asynchronously" */
+    QEMUTimer dma_timer;
 
+    /* ID of the queue for the current active timer. Currently only one queue 
+     * can be active at the same time.
+     */
+    int32_t dma_timer_qid;
+
+} CcpV5State;
 
 #endif
