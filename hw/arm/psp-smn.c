@@ -44,6 +44,13 @@ static PSPMiscReg psp_regs[] = {
         .addr = 0x5e000,
         .val = 0x1, 
     },
+    { 
+        /* The off chip bootloader wants bit 5 to be one, otherwise it returns an error
+         * dubbed PSPSTATUS_CCX_SEC_BISI_EN_NOT_SET_IN_FUSE_RAM. */
+        .addr = 0x5d0cc,
+        .val = BIT(5), 
+
+    },
     {
         /* Read by the on chip bootloader and acted upon. */
         .addr = 0x1025034,
@@ -133,6 +140,20 @@ static PSPMiscReg psp_regs[] = {
         /* The on chip bootloader waits for bit 0 to go 1. */
         .addr = 0x5a088,
         .val = 0x1,
+    },
+    {
+        /* Some SMU ready/online bit the off chip bootloader waits for after the firmware was loaded. */
+        /* TODO: Move SMU related stuff into separate device */
+        .addr = 0x3b10034,
+        .val = 0x1,
+
+    },
+    {
+        /* Some SMU ready/online bit the off chip bootloader waits for after the firmware was loaded. */
+        /* TODO: Move SMU related stuff into separate device */
+        .addr = 0x3b10704,
+        .val = 0x1,
+
     },
     {
         /* The on chip bootloader waits for bit 9 and 10 to become set. */
