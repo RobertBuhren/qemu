@@ -212,7 +212,7 @@ static void ccp_in_guest_pt(CcpV5State *s, uint32_t id, hwaddr dst, hwaddr src,
 
     /* "plen" might have been shortened to the range of memory actually available */
     if (plen < len) {
-        qemu_log_mask(LOG_UNIMP, "CCP: Only copying 0x%x bytes!", (uint32_t) plen);
+        qemu_log_mask(LOG_UNIMP, "CCP: Only copying 0x%x bytes!\n", (uint32_t) plen);
     }
     ccp_memcpy(hdst, hsrc, plen, bwise, bswap);
 
