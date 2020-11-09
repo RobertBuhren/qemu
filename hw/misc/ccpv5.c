@@ -175,6 +175,7 @@ static void ccp_in_guest_pt(CcpV5State *s, uint32_t id, hwaddr dst, hwaddr src,
         hdst = s->lsb.u.lsb + dst;
     } else if (dst_type == CCP_MEMTYPE_LOCAL) {
         /* TODO: Check whether "dst" is accessible for the CCP */
+        /* sets "plen" to the length of memory that was acutally mapped */
         hdst = cpu_physical_memory_map(dst, &plen, true);
         if (hdst == NULL) {
             qemu_log_mask(LOG_GUEST_ERROR, "CCP: Couldn't map guest memory during" \
@@ -195,6 +196,7 @@ static void ccp_in_guest_pt(CcpV5State *s, uint32_t id, hwaddr dst, hwaddr src,
     }
     else if (src_type == CCP_MEMTYPE_LOCAL) {
         /* TODO: Check whether "src" is accessible for the CCP */
+        /* sets "plen" to the length of memory that was acutally mapped */
         hsrc = cpu_physical_memory_map(src, &plen, false);
         if (hsrc == NULL) {
             qemu_log_mask(LOG_GUEST_ERROR, "CCP: Couldn't map guest memory during" \
@@ -207,7 +209,12 @@ static void ccp_in_guest_pt(CcpV5State *s, uint32_t id, hwaddr dst, hwaddr src,
     qemu_log_mask(LOG_UNIMP, "CCP: Performing passthrough. Copying 0x%x " \
                   "bytes from 0x%" HWADDR_PRIx " to 0x%" HWADDR_PRIx "\n",
                   len, src, dst);
-    ccp_memcpy(hdst, hsrc, len, bwise, bswap);
+
+    /* "plen" might have been shortened to the range of memory actually available */
+    if (plen < len) {
+        qemu_log_mask(LOG_UNIMP, "CCP: Only copying 0x%x bytes!", (uint32_t) plen);
+    }
+    ccp_memcpy(hdst, hsrc, plen, bwise, bswap);
 
     if (dclean)
         cpu_physical_memory_unmap(hdst, len, true, 0);
