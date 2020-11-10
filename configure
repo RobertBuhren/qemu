@@ -3035,7 +3035,7 @@ fi
 
 if test "$gmp" != "no"; then
     pass="no"
-    if $pkg_config --exists "gmp >= 5.0"; then
+    if $pkg_config --exists "gmp >= 6.2"; then
         gmp_cflags=$($pkg_config --cflags gmp)
         gmp_libs=$($pkg_config --libs gmp)
         gmp_version=$($pkg_config --modversion gmp)
