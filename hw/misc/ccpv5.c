@@ -17,6 +17,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include <byteswap.h>
+#include <zlib.h>
 #include "qemu/osdep.h"
 #include "qapi/error.h"
 #include "qemu/module.h"
@@ -143,8 +144,8 @@ static void ccp_in_guest_pt(CcpV5State *s, uint32_t id, hwaddr dst, hwaddr src,
      *       Verify that we don't overflow any host memory.
      *       Cleanup mappings on early return.
      */
-    void* hdst;
-    void* hsrc;
+    void* hdst = NULL;
+    void* hsrc = NULL;
     hwaddr plen = len;
 
     bool dclean = false;
@@ -288,6 +289,27 @@ static void ccp_perform_sha_256(CcpV5State *s, hwaddr src, uint32_t len, bool eo
 
 
 
+
+}
+
+static void ccp_zlib(CcpV5State *s, uint32_t id, ccp5_desc *desc) {
+    ccp_function func;
+    ccp_memtype src_type;
+    ccp_memtype dst_type;
+    hwaddr src;
+    hwaddr dst;
+    uint32_t cbytes;
+    ccp_pt_bitwise bwise;
+    ccp_pt_byteswap bswap;
+
+    src_type = CCP5_CMD_SRC_MEM(desc);
+    dst_type = CCP5_CMD_DST_MEM(desc);
+    cbytes   = CCP5_CMD_LEN(desc);
+    /* TODO: Does the shift maybe cause issues? */
+    src = CCP5_CMD_SRC_LO(desc) | ((hwaddr)(CCP5_CMD_SRC_HI(desc)) << 32);
+    dst = CCP5_CMD_DST_LO(desc) | ((hwaddr)(CCP5_CMD_DST_HI(desc)) << 32);
+    bwise = func.pt.bitwise;
+    bswap = func.pt.byteswap;
 
 }
 
@@ -481,6 +503,7 @@ static void ccp_execute(CcpV5State *s, uint32_t id, ccp5_desc *desc) {
             ccp_passthrough(s, id, desc);
             break;
         case CCP_ENGINE_ZLIB_DECOMPRESS:
+            ccp_zlib(s, id, desc);
             qemu_log_mask(LOG_UNIMP, "CCP: Unimplemented engine (ZLIB)\n");
             break;
         case CCP_ENGINE_ECC:
