@@ -34,6 +34,7 @@
 #include "hw/misc/ccpv5.h"
 #include "hw/misc/ccpv5-linux.h"
 #include "hw/misc/ccpv5-nettle.h"
+#include "hw/arm/psp.h"
 #include "crypto/hash.h"
 /* TODO: Restrict access to specific MemoryRegions only.
  *       Verify correct use of cpu_physical_memory_map/unmap */
@@ -250,7 +251,7 @@ static void ccp_passthrough(CcpV5State *s, uint32_t id, ccp5_desc *desc) {
 
 static void ccp_perform_sha_256(CcpV5State *s, hwaddr src, uint32_t len, bool eom, bool init, uint8_t* lsb_ctx) {
     /* TODO: use nettle. See: https://www.gnutls.org/manual/html_node/Using-GnuTLS-as-a-cryptographic-library.html#Using-GnuTLS-as-a-cryptographic-library */
-
+    /* Use "init" to determine whether we need to initialize a new sha context */
     void* hsrc;
     hwaddr plen;
     plen = len;
@@ -293,23 +294,69 @@ static void ccp_perform_sha_256(CcpV5State *s, hwaddr src, uint32_t len, bool eo
 }
 
 static void ccp_zlib(CcpV5State *s, uint32_t id, ccp5_desc *desc) {
-    ccp_function func;
+    bool init;
+    bool eom;
     ccp_memtype src_type;
     ccp_memtype dst_type;
     hwaddr src;
     hwaddr dst;
-    uint32_t cbytes;
-    ccp_pt_bitwise bwise;
-    ccp_pt_byteswap bswap;
+    uint32_t len;
+    void* hsrc;
+    void* hdst;
+    hwaddr plen_in;
+    hwaddr plen_out;
 
     src_type = CCP5_CMD_SRC_MEM(desc);
     dst_type = CCP5_CMD_DST_MEM(desc);
-    cbytes   = CCP5_CMD_LEN(desc);
+    len = CCP5_CMD_LEN(desc);
+    plen_in = len;
     /* TODO: Does the shift maybe cause issues? */
     src = CCP5_CMD_SRC_LO(desc) | ((hwaddr)(CCP5_CMD_SRC_HI(desc)) << 32);
     dst = CCP5_CMD_DST_LO(desc) | ((hwaddr)(CCP5_CMD_DST_HI(desc)) << 32);
-    bwise = func.pt.bitwise;
-    bswap = func.pt.byteswap;
+    init = CCP5_CMD_INIT(desc);
+    eom = CCP5_CMD_EOM(desc);
+
+    qemu_log_mask(LOG_UNIMP, "CCP ZLIB: src 0x%" HWADDR_PRIx " len" \
+                  " 0x%x dst 0x%" HWADDR_PRIx " src_type 0x%x dst_type 0x%x" \
+                  " init %d eom %d\n", src, len, dst, src_type, dst_type, 
+                  init, eom);
+
+    if (!init || !eom) {
+        qemu_log_mask(LOG_UNIMP, "CCP Error: Only EOM=1 and INIT=1 Zlib ops are currently supported\n");
+        return;
+
+    }
+
+    if (init) {
+      if (ccp_zlib_init(&s->zlib_state)) {
+        qemu_log_mask(LOG_UNIMP, "CCP Error: Couldn't initialize zlib state\n");
+        return;
+      }
+    }
+
+    /* Mapping input buffer */
+    hsrc = cpu_physical_memory_map(src, &plen_in, false);
+    if (plen_in != len) {
+        qemu_log_mask(LOG_GUEST_ERROR, "CCP Error: Zlib couldn't map guest input memory\n");
+        return;
+    }
+    /* Mapping output buffer */
+    /* TODO: the CCP has access to the whole SRAM area of the PSP. We don't know here which part is might access ,so we simply map everything */
+    plen_out = PSP_SRAM_SIZE_ZEN;
+    hdst = cpu_physical_memory_map(0, &plen_out, false);
+    if (plen_out != PSP_SRAM_SIZE_ZEN) {
+        qemu_log_mask(LOG_GUEST_ERROR, "CCP Error: Zlib couldn't map guest output memory\n");
+        return;
+    }
+
+    /* We mapped the whole SRAM, so we need to add the actual SRAM destination offset to "hdst".
+     */
+    ccp_zlib_inflate(&s->zlib_state, plen_in, plen_out, hdst + dst, hsrc);
+
+    if(eom) {
+      ccp_zlib_end(&s->zlib_state);
+    }
+
 
 }
 

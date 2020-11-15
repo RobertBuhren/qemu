@@ -22,6 +22,7 @@
 #include "hw/sysbus.h"
 #include "exec/memory.h"
 #include "hw/misc/ccpv5-nettle.h"
+#include "hw/misc/ccpv5-zlib.h"
 #include "qemu/timer.h"
 
 #define TYPE_CCP_V5 "amd.ccpV5"
@@ -103,6 +104,7 @@ typedef struct CcpV5State {
     CcpV5Lsb lsb;
 
     CcpV5ShaCtx sha_ctx;
+    CcpV5ZlibState zlib_state;
 
     /* Timer to process QUEUE events "asynchronously" */
     QEMUTimer dma_timer;
