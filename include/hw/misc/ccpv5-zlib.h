@@ -24,6 +24,8 @@
 #include <zlib.h>
 #include <string.h>
 #include "exec/hwaddr.h"
+
+#define CCP_ZLIB_CHUNK_SIZE 4096
 typedef z_stream CcpV5ZlibState;
 
 inline static int ccp_zlib_init(CcpV5ZlibState *s) {

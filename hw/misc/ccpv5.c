@@ -293,7 +293,7 @@ static void ccp_perform_sha_256(CcpV5State *s, hwaddr src, uint32_t len, bool eo
 
 }
 
-static void ccp_zlib(CcpV5State *s, uint32_t id, ccp5_desc *desc) {
+static bool ccp_zlib(CcpV5State *s, uint32_t id, ccp5_desc *desc) {
     bool init;
     bool eom;
     ccp_memtype src_type;
@@ -305,6 +305,7 @@ static void ccp_zlib(CcpV5State *s, uint32_t id, ccp5_desc *desc) {
     void* hdst;
     hwaddr plen_in;
     hwaddr plen_out;
+    bool err;
 
     src_type = CCP5_CMD_SRC_MEM(desc);
     dst_type = CCP5_CMD_DST_MEM(desc);
@@ -323,14 +324,14 @@ static void ccp_zlib(CcpV5State *s, uint32_t id, ccp5_desc *desc) {
 
     if (!init || !eom) {
         qemu_log_mask(LOG_UNIMP, "CCP Error: Only EOM=1 and INIT=1 Zlib ops are currently supported\n");
-        return;
+        return true;
 
     }
 
     if (init) {
       if (ccp_zlib_init(&s->zlib_state)) {
         qemu_log_mask(LOG_UNIMP, "CCP Error: Couldn't initialize zlib state\n");
-        return;
+        return true;
       }
     }
 
@@ -338,25 +339,26 @@ static void ccp_zlib(CcpV5State *s, uint32_t id, ccp5_desc *desc) {
     hsrc = cpu_physical_memory_map(src, &plen_in, false);
     if (plen_in != len) {
         qemu_log_mask(LOG_GUEST_ERROR, "CCP Error: Zlib couldn't map guest input memory\n");
-        return;
+        cpu_physical_memory_unmap(hsrc, plen_in, true, plen_in);
+        return true;
     }
     /* Mapping output buffer */
-    /* TODO: the CCP has access to the whole SRAM area of the PSP. We don't know here which part is might access ,so we simply map everything */
-    plen_out = PSP_SRAM_SIZE_ZEN;
-    hdst = cpu_physical_memory_map(0, &plen_out, false);
-    if (plen_out != PSP_SRAM_SIZE_ZEN) {
-        qemu_log_mask(LOG_GUEST_ERROR, "CCP Error: Zlib couldn't map guest output memory\n");
-        return;
+    /* TODO: Try to decompress page wise until we can't map the hosts memory anymore */
+    plen_out = CCP_ZLIB_CHUNK_SIZE;
+    hdst = cpu_physical_memory_map(dst, &plen_out, false);
+    if (plen_out != CCP_ZLIB_CHUNK_SIZE) {
+      /* qemu_log_mask(LOG_GUEST_ERROR, "CCP Error: Zlib couldn't map guest output memory\n"); */
+      err = true;
+        /* return; */
     }
 
-    /* We mapped the whole SRAM, so we need to add the actual SRAM destination offset to "hdst".
-     */
-    ccp_zlib_inflate(&s->zlib_state, plen_in, plen_out, hdst + dst, hsrc);
+    ccp_zlib_inflate(&s->zlib_state, plen_in, plen_out, hdst, hsrc);
 
     if(eom) {
       ccp_zlib_end(&s->zlib_state);
     }
 
+    return err;
 
 }
 
