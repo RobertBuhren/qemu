@@ -182,3 +182,4 @@ trace-ust-all.c
 /.docs_*
 /.clangd
 /.cache
+/build
