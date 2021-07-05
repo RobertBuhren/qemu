@@ -181,3 +181,4 @@ trace-ust-all.c
 /.gdb_history
 /.docs_*
 /.clangd
+/.cache
